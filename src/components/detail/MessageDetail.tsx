@@ -1,5 +1,6 @@
 import { createMemo, createSignal, Show } from "solid-js";
 import type { TopicNode } from "../../types/mqtt";
+import type { LoggedMessage } from "../../stores/messageLog";
 import {
   payloadToString,
   tryParseJson,
@@ -15,6 +16,7 @@ type Tab = "formatted" | "raw" | "hex";
 
 interface Props {
   node: TopicNode;
+  overrideMessage?: LoggedMessage | null;
 }
 
 export default function MessageDetail(props: Props) {
@@ -25,6 +27,8 @@ export default function MessageDetail(props: Props) {
     publish(props.node.fullTopic, "", 1, true);
   }
 
+  const activeMessage = createMemo(() => props.overrideMessage ?? props.node.lastMessage);
+
   const retainedTopicsBelow = createMemo(() => collectRetainedTopics(props.node));
 
   function clearAllRetainedBelow() {
@@ -34,7 +38,7 @@ export default function MessageDetail(props: Props) {
   }
 
   const payloadStr = createMemo(() => {
-    const msg = props.node.lastMessage;
+    const msg = activeMessage();
     if (!msg) return "";
     return payloadToString(msg.payload);
   });
@@ -42,7 +46,7 @@ export default function MessageDetail(props: Props) {
   const parsedJson = createMemo(() => tryParseJson(payloadStr()));
 
   const hexStr = createMemo(() => {
-    const msg = props.node.lastMessage;
+    const msg = activeMessage();
     if (!msg) return "";
     return payloadToHex(msg.payload);
   });
@@ -63,7 +67,7 @@ export default function MessageDetail(props: Props) {
           </div>
           <Show when={connectionStatus() === "connected"}>
             <div class="flex gap-1.5 shrink-0">
-              <Show when={props.node.lastMessage?.retain}>
+              <Show when={activeMessage()?.retain}>
                 <button
                   class="px-2 py-0.5 text-xs rounded bg-amber-900/50 text-amber-400 hover:bg-amber-800/60 border border-amber-700/50 transition-colors"
                   title="Publish empty payload with retain=true to clear this retained message"
@@ -84,7 +88,7 @@ export default function MessageDetail(props: Props) {
             </div>
           </Show>
         </div>
-        <Show when={props.node.lastMessage}>
+        <Show when={activeMessage()}>
           {(msg) => (
             <div class="flex gap-4 mt-1.5 text-xs text-slate-400">
               <span>QoS {msg().qos}</span>
@@ -93,7 +97,9 @@ export default function MessageDetail(props: Props) {
               </Show>
               <span>{formatBytes(msg().payload.byteLength)}</span>
               <span>{formatTimestamp(msg().timestamp)}</span>
-              <span>{props.node.messageCount.toLocaleString()} total messages</span>
+              <Show when={!props.overrideMessage}>
+                <span>{props.node.messageCount.toLocaleString()} total messages</span>
+              </Show>
             </div>
           )}
         </Show>
@@ -118,7 +124,7 @@ export default function MessageDetail(props: Props) {
 
       {/* Content */}
       <div class="flex-1 overflow-auto p-4">
-        <Show when={props.node.lastMessage} fallback={
+        <Show when={activeMessage()} fallback={
           <div class="text-slate-500 text-sm">No messages received yet</div>
         }>
           {activeTab() === "formatted" ? (

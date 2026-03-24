@@ -5,6 +5,7 @@ import type { WorkerEvent } from "./workers/mqtt.protocol";
 import { useConnections } from "./stores/connections";
 import { useTopicTree } from "./stores/topics";
 import { useUI } from "./stores/ui";
+import { useMessageLog } from "./stores/messageLog";
 import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
@@ -27,7 +28,8 @@ export default function App() {
   const { connections, activeConnectionId, setActiveConnectionId, getConnection } =
     useConnections();
   const { processBatch, clearTree } = useTopicTree();
-  const { setConnectionStatus, showConnectionModal, showSubscriptionModal, connectionStatus, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics } = useUI();
+  const { setConnectionStatus, showConnectionModal, showSubscriptionModal, connectionStatus, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
+  const { addMessages } = useMessageLog();
 
   // Resizable sidebar
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
@@ -68,6 +70,7 @@ export default function App() {
           break;
         case "messages": {
           const newTopics = processBatch(event.batch);
+          addMessages(event.batch, selectedTopic());
           if (autoExpand() && newTopics.length > 0) {
             expandTopics(newTopics);
           }
