@@ -1,4 +1,4 @@
-import { createMemo, createSignal, Show } from "solid-js";
+import { createMemo, createSignal, createEffect, onCleanup, Show } from "solid-js";
 import type { TopicNode } from "../../types/mqtt";
 import type { LoggedMessage } from "../../stores/messageLog";
 import {
@@ -12,7 +12,18 @@ import { collectRetainedTopics } from "../../lib/topic-tree";
 import { useUI } from "../../stores/ui";
 import JsonViewer from "./JsonViewer";
 
-type Tab = "formatted" | "raw" | "hex";
+type Tab = "formatted" | "raw" | "hex" | "pic";
+
+function detectMimeType(payload: Uint8Array): string {
+  const b = payload;
+  if (b[0] === 0xff && b[1] === 0xd8) return "image/jpeg";
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return "image/gif";
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return "image/webp";
+  if (b[0] === 0x42 && b[1] === 0x4d) return "image/bmp";
+  return "image/jpeg"; // fallback — let the browser decide
+}
 
 interface Props {
   node: TopicNode;
@@ -51,10 +62,24 @@ export default function MessageDetail(props: Props) {
     return payloadToHex(msg.payload);
   });
 
+  const [picUrl, setPicUrl] = createSignal<string | null>(null);
+
+  createEffect(() => {
+    const msg = activeMessage();
+    const prev = picUrl();
+    if (prev) URL.revokeObjectURL(prev);
+    if (!msg || activeTab() !== "pic") { setPicUrl(null); return; }
+    const blob = new Blob([msg.payload], { type: detectMimeType(msg.payload) });
+    setPicUrl(URL.createObjectURL(blob));
+  });
+
+  onCleanup(() => { const u = picUrl(); if (u) URL.revokeObjectURL(u); });
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "formatted", label: "Formatted" },
     { id: "raw", label: "Raw" },
     { id: "hex", label: "Hex" },
+    { id: "pic", label: "Pic" },
   ];
 
   return (
@@ -142,10 +167,28 @@ export default function MessageDetail(props: Props) {
             <pre class="text-sm font-mono text-slate-300 whitespace-pre-wrap break-all">
               {payloadStr()}
             </pre>
-          ) : (
+          ) : activeTab() === "hex" ? (
             <pre class="text-sm font-mono text-slate-400 whitespace-pre-wrap break-all">
               {hexStr()}
             </pre>
+          ) : (
+            <Show when={picUrl()} fallback={
+              <div class="text-slate-500 text-sm">Loading image…</div>
+            }>
+              {(url) => (
+                <img
+                  src={url()}
+                  alt="payload"
+                  class="max-w-full rounded border border-slate-700"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).replaceWith(
+                    Object.assign(document.createElement("div"), {
+                      className: "text-slate-500 text-sm",
+                      textContent: "Payload could not be displayed as an image.",
+                    })
+                  ); }}
+                />
+              )}
+            </Show>
           )}
         </Show>
       </div>

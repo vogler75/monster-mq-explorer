@@ -12,7 +12,7 @@ interface Props {
 export default function Toolbar(props: Props) {
   const { connections, activeConnectionId } = useConnections();
   const { totalMessages, messagesPerSecond } = useTopicTree();
-  const { connectionStatus, setShowSubscriptionModal } = useUI();
+  const { connectionStatus, setShowSubscriptionModal, flashEnabled, toggleFlashEnabled } = useUI();
 
   const [pickerOpen, setPickerOpen] = createSignal(false);
 
@@ -59,6 +59,19 @@ export default function Toolbar(props: Props) {
         <div class="flex items-center gap-3 text-xs text-slate-400">
           <span>{totalMessages().toLocaleString()} msgs</span>
           <span>{messagesPerSecond()} msg/s</span>
+          <button
+            class="p-0.5 rounded transition-colors"
+            classList={{
+              "text-blue-400 bg-blue-400/10": flashEnabled(),
+              "text-slate-500 hover:text-slate-300": !flashEnabled(),
+            }}
+            onClick={toggleFlashEnabled}
+            title={flashEnabled() ? "Flash on update (click to disable)" : "Flash on update disabled"}
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M8 1L4 8h5l-3 5 7-8H8z" />
+            </svg>
+          </button>
         </div>
       </Show>
 

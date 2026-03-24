@@ -1,6 +1,7 @@
 import { createMemo, createSignal, createEffect, For } from "solid-js";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { useMessageLog, type LoggedMessage } from "../../stores/messageLog";
+import { useUI } from "../../stores/ui";
 import { payloadToString, formatTimestamp } from "../../lib/format";
 
 interface Props {
@@ -49,6 +50,7 @@ export default function MessageTable(props: Props) {
   const [colQos, setColQos] = createSignal(36);
   const [colRetain, setColRetain] = createSignal(24);
   const [payloadMultiline, setPayloadMultiline] = createSignal(false);
+  const { flashEnabled } = useUI();
 
   let scrollRef!: HTMLDivElement;
   let multilineRef!: HTMLDivElement;
@@ -138,17 +140,6 @@ export default function MessageTable(props: Props) {
           />
           <span class="text-slate-300">Active</span>
         </label>
-        {logMode() === "history" && (
-          <label class="flex items-center gap-1">
-            <span class="text-slate-500">Max</span>
-            <input
-              type="number"
-              class="w-16 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500"
-              value={logMaxRows()}
-              onBlur={(e) => setLogMaxRows(Math.max(10, parseInt(e.currentTarget.value) || 500))}
-            />
-          </label>
-        )}
         {/* Mode toggle */}
         <button
           class="p-0.5 rounded transition-colors"
@@ -156,7 +147,11 @@ export default function MessageTable(props: Props) {
             "text-blue-400 bg-blue-400/10": logMode() === "live",
             "text-slate-500 hover:text-slate-300": logMode() === "history",
           }}
-          onClick={() => setLogMode((m) => m === "history" ? "live" : "history")}
+          onClick={() => {
+            const next = logMode() === "history" ? "live" : "history";
+            setLogMode(next);
+            setLogSort(next === "live" ? "topic" : "time");
+          }}
           title={logMode() === "live" ? "Live view: one row per topic (click for history)" : "History view: all messages (click for live)"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -220,6 +215,17 @@ export default function MessageTable(props: Props) {
           </svg>
         </button>
         <span class="text-slate-500">{displayMessages().length} rows</span>
+        {logMode() === "history" && (
+          <label class="flex items-center gap-1 ml-auto">
+            <span class="text-slate-500">Max</span>
+            <input
+              type="number"
+              class="w-16 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500"
+              value={logMaxRows()}
+              onBlur={(e) => setLogMaxRows(Math.max(10, parseInt(e.currentTarget.value) || 500))}
+            />
+          </label>
+        )}
       </div>
 
       {/* Column headers */}
@@ -257,11 +263,6 @@ export default function MessageTable(props: Props) {
 
       {/* Table body */}
       <div class="relative flex-1 overflow-hidden">
-        {!logEnabled() && (
-          <div class="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/80 text-slate-400 text-xs">
-            Logging paused — enable to capture messages
-          </div>
-        )}
 
         {/* Single-line mode: virtualized, fixed row height */}
         {!payloadMultiline() && (
@@ -279,7 +280,7 @@ export default function MessageTable(props: Props) {
                       class="flex items-center text-xs cursor-pointer border-b border-slate-800/60 hover:bg-slate-700/40 transition-colors font-mono"
                       classList={{
                         "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg()?.id,
-                        "row-updated": logMode() === "live" && recentlyUpdated().has(msg()?.topic ?? ""),
+                        "row-updated": flashEnabled() && logMode() === "live" && recentlyUpdated().has(msg()?.topic ?? ""),
                       }}
                       onClick={() => { const m = msg(); if (m) props.onSelectMessage(props.selectedMessageId === m.id ? null : m); }}
                     >
@@ -305,7 +306,7 @@ export default function MessageTable(props: Props) {
                   class="flex text-xs cursor-pointer border-b border-slate-800/60 hover:bg-slate-700/40 transition-colors font-mono py-1"
                   classList={{
                     "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg.id,
-                    "row-updated": logMode() === "live" && recentlyUpdated().has(msg.topic),
+                    "row-updated": flashEnabled() && logMode() === "live" && recentlyUpdated().has(msg.topic),
                   }}
                   onClick={() => props.onSelectMessage(props.selectedMessageId === msg.id ? null : msg)}
                 >

@@ -17,6 +17,7 @@ const [connectionStatus, setConnectionStatus] = createSignal<
 const [sortTree, setSortTree] = createSignal(false);
 const [autoExpand, setAutoExpand] = createSignal(false);
 const [showRetainedOnly, setShowRetainedOnly] = createSignal(false);
+const [flashEnabled, setFlashEnabled] = createSignal(true);
 const [showConnectionModal, setShowConnectionModal] = createSignal(false);
 const [showSubscriptionModal, setShowSubscriptionModal] = createSignal(false);
 const [editingConnectionId, setEditingConnectionId] = createSignal<
@@ -34,6 +35,8 @@ export function useUI() {
     toggleAutoExpand() { setAutoExpand((v) => !v); },
     showRetainedOnly,
     toggleShowRetainedOnly() { setShowRetainedOnly((v) => !v); },
+    flashEnabled,
+    toggleFlashEnabled() { setFlashEnabled((v) => !v); },
 
     expandAll(paths: string[]) {
       setExpandedNodes(new Set(paths));

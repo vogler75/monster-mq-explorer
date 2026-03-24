@@ -1,5 +1,6 @@
 import { createEffect, createSignal, Show } from "solid-js";
 import type { FlatTreeNode } from "../../types/mqtt";
+import { useUI } from "../../stores/ui";
 
 interface Props {
   node: FlatTreeNode | undefined;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function TopicRow(props: Props) {
+  const { flashEnabled } = useUI();
   const [flash, setFlash] = createSignal(false);
 
   // Flash on update
@@ -32,7 +34,7 @@ export default function TopicRow(props: Props) {
           classList={{
             "bg-blue-600/20 text-blue-200": props.isSelected,
             "text-slate-300": !props.isSelected,
-            "row-updated": flash(),
+            "row-updated": flashEnabled() && flash(),
           }}
           style={{ "padding-left": `${flatNode().depth * 16 + 4}px` }}
           onClick={() => props.onSelect(flatNode().key)}
