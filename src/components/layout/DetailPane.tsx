@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal, createEffect, onMount } from "solid-js";
+import { Show, createMemo, createSignal, createEffect, onMount, on } from "solid-js";
 import { useUI } from "../../stores/ui";
 import { useTopicTree } from "../../stores/topics";
 import { getNodeByTopic } from "../../lib/topic-tree";
@@ -10,12 +10,15 @@ import { useMessageLog } from "../../stores/messageLog";
 export default function DetailPane() {
   const { selectedTopic } = useUI();
   const { topicTree } = useTopicTree();
-  const { logEnabled, setLogEnabled, logMode, clearLog, seedLiveFromTree } = useMessageLog();
+  const { logEnabled, setLogEnabled, logMode, liveTopics, clearLog, seedLiveFromTree } = useMessageLog();
 
   const [tableHeight, setTableHeight] = createSignal(0);
 
   onMount(() => setTableHeight(Math.floor(containerRef.getBoundingClientRect().height / 2)));
+  // In history mode: store the clicked message object directly (stable snapshot)
   const [selectedLogMsg, setSelectedLogMsg] = createSignal<LoggedMessage | null>(null);
+  // In live mode: store the topic string and derive the message reactively
+  const [selectedLiveTopic, setSelectedLiveTopic] = createSignal<string | null>(null);
 
   let containerRef!: HTMLDivElement;
 
@@ -26,14 +29,48 @@ export default function DetailPane() {
   });
 
   // Clear log and selection when topic changes, then seed live topics
-  createEffect(() => {
-    const topic = selectedTopic();
+  createEffect(on(selectedTopic, (topic) => {
     setSelectedLogMsg(null);
+    setSelectedLiveTopic(null);
     clearLog();
     if (topic && logMode() === "live") {
       const node = getNodeByTopic(topicTree, topic);
       if (node) seedLiveFromTree(node);
     }
+  }));
+
+  // Clear selection when switching modes
+  createEffect(() => {
+    logMode();
+    setSelectedLogMsg(null);
+    setSelectedLiveTopic(null);
+  });
+
+  function handleSelectMessage(msg: LoggedMessage | null) {
+    if (logMode() === "live") {
+      setSelectedLiveTopic(msg ? msg.topic : null);
+    } else {
+      setSelectedLogMsg(msg);
+    }
+  }
+
+  // In live mode: re-derive from the store so detail updates when a new message arrives.
+  // In history mode: use the frozen snapshot clicked by the user.
+  const overrideMessage = createMemo<LoggedMessage | null>(() => {
+    if (logMode() === "live") {
+      const topic = selectedLiveTopic();
+      return topic ? (liveTopics[topic] ?? null) : null;
+    }
+    return selectedLogMsg();
+  });
+
+  // Row highlight id — in live mode look up the stable id from the store.
+  const selectedMessageId = createMemo<number | null>(() => {
+    if (logMode() === "live") {
+      const topic = selectedLiveTopic();
+      return topic ? (liveTopics[topic]?.id ?? null) : null;
+    }
+    return selectedLogMsg()?.id ?? null;
   });
 
   function startSplitResize(e: MouseEvent) {
@@ -89,8 +126,8 @@ export default function DetailPane() {
           style={{ height: `${tableHeight()}px` }}
         >
           <MessageTable
-            onSelectMessage={setSelectedLogMsg}
-            selectedMessageId={selectedLogMsg()?.id ?? null}
+            onSelectMessage={handleSelectMessage}
+            selectedMessageId={selectedMessageId()}
           />
         </div>
         {/* Resize handle */}
@@ -113,7 +150,7 @@ export default function DetailPane() {
           {(node) => (
             <MessageDetail
               node={node()}
-              overrideMessage={selectedLogMsg()}
+              overrideMessage={overrideMessage()}
             />
           )}
         </Show>
