@@ -28,7 +28,8 @@ export function useTopicTree() {
     totalMessages,
     messagesPerSecond,
 
-    processBatch(messages: SerializedMessage[]) {
+    processBatch(messages: SerializedMessage[]): string[] {
+      const newTopics: string[] = [];
       batch(() => {
         setTopicTree(
           produce((root) => {
@@ -39,14 +40,16 @@ export function useTopicTree() {
               for (let i = 0; i < segments.length; i++) {
                 const segment = segments[i];
                 if (!current.children[segment]) {
+                  const fullTopic = segments.slice(0, i + 1).join("/");
                   current.children[segment] = {
                     segment,
-                    fullTopic: segments.slice(0, i + 1).join("/"),
+                    fullTopic,
                     children: {},
                     messageCount: 0,
                     lastMessage: null,
                     lastUpdated: 0,
                   };
+                  newTopics.push(fullTopic);
                 }
                 current = current.children[segment];
               }
@@ -61,6 +64,7 @@ export function useTopicTree() {
       });
       msgCountWindow += messages.length;
       updateRate();
+      return newTopics;
     },
 
     clearTree() {
@@ -69,6 +73,24 @@ export function useTopicTree() {
       setMessagesPerSecond(0);
       msgCountWindow = 0;
       lastRateUpdate = Date.now();
+    },
+
+    clearSubtree(topic: string) {
+      const segments = topic.split("/");
+      if (segments.length === 0) return;
+
+      setTopicTree(
+        produce((root) => {
+          let current = root;
+          // Navigate to parent of target node
+          for (let i = 0; i < segments.length - 1; i++) {
+            if (!current.children[segments[i]]) return;
+            current = current.children[segments[i]];
+          }
+          // Delete the target node
+          delete current.children[segments[segments.length - 1]];
+        })
+      );
     },
   };
 }

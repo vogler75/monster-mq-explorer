@@ -9,6 +9,7 @@ import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
 import ConnectionModal from "./components/connection/ConnectionModal";
+import SubscriptionModal from "./components/connection/SubscriptionPanel";
 
 // Create worker
 let worker: Worker | null = null;
@@ -26,7 +27,7 @@ export default function App() {
   const { connections, activeConnectionId, setActiveConnectionId, getConnection } =
     useConnections();
   const { processBatch, clearTree } = useTopicTree();
-  const { setConnectionStatus, showConnectionModal, connectionStatus, setPublishFn } = useUI();
+  const { setConnectionStatus, showConnectionModal, showSubscriptionModal, connectionStatus, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics } = useUI();
 
   // Resizable sidebar
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
@@ -65,9 +66,13 @@ export default function App() {
         case "error":
           console.error("[MQTT]", event.message);
           break;
-        case "messages":
-          processBatch(event.batch);
+        case "messages": {
+          const newTopics = processBatch(event.batch);
+          if (autoExpand() && newTopics.length > 0) {
+            expandTopics(newTopics);
+          }
           break;
+        }
         case "subscribed":
           console.log("[MQTT] Subscribed:", event.topic);
           break;
@@ -100,6 +105,23 @@ export default function App() {
 
   setPublishFn(publish);
 
+  function subscribe(topic: string, qos: 0 | 1 | 2) {
+    if (worker) {
+      const cmd: WorkerCommand = { type: "subscribe", topic, qos };
+      worker.postMessage(cmd);
+    }
+  }
+
+  function unsubscribe(topic: string) {
+    if (worker) {
+      const cmd: WorkerCommand = { type: "unsubscribe", topic };
+      worker.postMessage(cmd);
+    }
+  }
+
+  setSubscribeFn(subscribe);
+  setUnsubscribeFn(unsubscribe);
+
   function disconnect() {
     if (worker) {
       const cmd: WorkerCommand = { type: "disconnect" };
@@ -123,7 +145,7 @@ export default function App() {
       />
       <div class="flex flex-1 overflow-hidden">
         <div style={{ width: `${sidebarWidth()}px`, "min-width": "200px", "max-width": "80vw" }} class="shrink-0">
-          <Sidebar onConnect={connect} />
+          <Sidebar />
         </div>
         <div
           class="w-1.5 cursor-col-resize bg-slate-700 hover:bg-blue-500 active:bg-blue-500 transition-colors shrink-0"
@@ -133,6 +155,9 @@ export default function App() {
       </div>
       <Show when={showConnectionModal()}>
         <ConnectionModal />
+      </Show>
+      <Show when={showSubscriptionModal()}>
+        <SubscriptionModal />
       </Show>
     </div>
   );

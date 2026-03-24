@@ -2,12 +2,12 @@ import { createMemo, createSignal, For } from "solid-js";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { useTopicTree } from "../../stores/topics";
 import { useUI } from "../../stores/ui";
-import { flattenVisibleNodes } from "../../lib/topic-tree";
+import { flattenVisibleNodes, collectAllNodePaths, hasRetainedInTree } from "../../lib/topic-tree";
 import TopicRow from "./TopicRow";
 
 export default function TopicTree() {
-  const { topicTree } = useTopicTree();
-  const { expandedNodes, selectedTopic, setSelectedTopic, toggleExpanded, sortTree, toggleSort } =
+  const { topicTree, clearTree, clearSubtree } = useTopicTree();
+  const { expandedNodes, selectedTopic, setSelectedTopic, toggleExpanded, sortTree, toggleSort, autoExpand, toggleAutoExpand, expandAll, showRetainedOnly, toggleShowRetainedOnly } =
     useUI();
 
   let scrollRef!: HTMLDivElement;
@@ -15,10 +15,15 @@ export default function TopicTree() {
   const [filter, setFilter] = createSignal("");
 
   const flatNodes = createMemo(() => {
-    const nodes = flattenVisibleNodes(topicTree, expandedNodes(), sortTree());
+    let nodes = flattenVisibleNodes(topicTree, expandedNodes(), sortTree());
     const f = filter().toLowerCase();
-    if (!f) return nodes;
-    return nodes.filter((n) => n.key.toLowerCase().includes(f));
+    if (f) {
+      nodes = nodes.filter((n) => n.key.toLowerCase().includes(f));
+    }
+    if (showRetainedOnly()) {
+      nodes = nodes.filter((n) => hasRetainedInTree(n.node));
+    }
+    return nodes;
   });
 
   const virtualizer = createVirtualizer({
@@ -51,6 +56,61 @@ export default function TopicTree() {
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 3h10M2 7h6M2 11h3" />
+          </svg>
+        </button>
+        <button
+          class="p-1 rounded shrink-0 transition-colors"
+          classList={{
+            "text-blue-400 bg-blue-400/10": autoExpand(),
+            "text-slate-500 hover:text-slate-300": !autoExpand(),
+          }}
+          onClick={toggleAutoExpand}
+          title={autoExpand() ? "Auto-expand on (click to disable)" : "Auto-expand off"}
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M7 2v10M2 7h10" />
+          </svg>
+        </button>
+        <button
+          class="p-1 rounded shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
+          onClick={() => expandAll(collectAllNodePaths(topicTree))}
+          title="Expand all"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 4h10M2 7h7M2 10h4" />
+            <path d="M11 8l2 2-2 2" />
+          </svg>
+        </button>
+        <button
+          class="p-1 rounded shrink-0 transition-colors"
+          classList={{
+            "text-slate-500 hover:text-slate-300 cursor-not-allowed opacity-50": !selectedTopic(),
+            "text-red-500 hover:text-red-400": selectedTopic(),
+          }}
+          disabled={!selectedTopic()}
+          onClick={() => {
+            if (selectedTopic()) {
+              clearSubtree(selectedTopic()!);
+              setSelectedTopic(null);
+            }
+          }}
+          title={selectedTopic() ? "Clear selected node and children" : "Select a node to clear"}
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4M5 6v4M9 6v4" />
+          </svg>
+        </button>
+        <button
+          class="p-1 rounded shrink-0 transition-colors"
+          classList={{
+            "text-blue-400 bg-blue-400/10": showRetainedOnly(),
+            "text-slate-500 hover:text-slate-300": !showRetainedOnly(),
+          }}
+          onClick={toggleShowRetainedOnly}
+          title={showRetainedOnly() ? "Show all (click to show all)" : "Show retained only"}
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 7l2 2 4-4M12 7a5 5 0 1 0-10 0 5 5 0 0 0 10 0" />
           </svg>
         </button>
       </div>

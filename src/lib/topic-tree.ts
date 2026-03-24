@@ -88,6 +88,26 @@ export function getNodeByTopic(
   return current;
 }
 
+export function hasRetainedInTree(node: TopicNode): boolean {
+  if (node.lastMessage?.retain) return true;
+  for (const child of Object.values(node.children)) {
+    if (hasRetainedInTree(child)) return true;
+  }
+  return false;
+}
+
+export function collectAllNodePaths(root: TopicNode): string[] {
+  const result: string[] = [];
+  function walk(node: TopicNode) {
+    for (const child of Object.values(node.children)) {
+      if (child.fullTopic) result.push(child.fullTopic);
+      walk(child);
+    }
+  }
+  walk(root);
+  return result;
+}
+
 export function countDescendants(node: TopicNode): number {
   let count = node.messageCount;
   for (const child of Object.values(node.children)) {

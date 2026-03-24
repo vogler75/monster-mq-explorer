@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import type { ConnectionConfig } from "../types/mqtt";
+import type { ConnectionConfig, Subscription } from "../types/mqtt";
 import { createDefaultConnection } from "../types/mqtt";
 import { loadConnections, saveConnections } from "../lib/persistence";
 
@@ -58,6 +58,39 @@ export function useConnections() {
 
     getConnection(id: string) {
       return connections.find((c) => c.id === id);
+    },
+
+    addSubscription(id: string, sub: Subscription) {
+      setConnections(
+        (c) => c.id === id,
+        produce((c) => {
+          if (!c.subscriptions.find((s) => s.topic === sub.topic)) {
+            c.subscriptions.push(sub);
+          }
+        })
+      );
+      persistConnections();
+    },
+
+    removeSubscription(id: string, topic: string) {
+      setConnections(
+        (c) => c.id === id,
+        produce((c) => {
+          c.subscriptions = c.subscriptions.filter((s) => s.topic !== topic);
+        })
+      );
+      persistConnections();
+    },
+
+    updateSubscription(id: string, topic: string, updates: Partial<Subscription>) {
+      setConnections(
+        (c) => c.id === id,
+        produce((c) => {
+          const sub = c.subscriptions.find((s) => s.topic === topic);
+          if (sub) Object.assign(sub, updates);
+        })
+      );
+      persistConnections();
     },
   };
 }
