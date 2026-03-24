@@ -10,7 +10,7 @@ import { useMessageLog } from "../../stores/messageLog";
 export default function DetailPane() {
   const { selectedTopic } = useUI();
   const { topicTree } = useTopicTree();
-  const { logEnabled, setLogEnabled, clearLog } = useMessageLog();
+  const { logEnabled, setLogEnabled, logMode, clearLog, seedLiveFromTree } = useMessageLog();
 
   const [tableHeight, setTableHeight] = createSignal(0);
 
@@ -25,11 +25,15 @@ export default function DetailPane() {
     return getNodeByTopic(topicTree, topic);
   });
 
-  // Clear log and selection when topic changes
+  // Clear log and selection when topic changes, then seed live topics
   createEffect(() => {
-    selectedTopic();
+    const topic = selectedTopic();
     setSelectedLogMsg(null);
     clearLog();
+    if (topic && logMode() === "live") {
+      const node = getNodeByTopic(topicTree, topic);
+      if (node) seedLiveFromTree(node);
+    }
   });
 
   function startSplitResize(e: MouseEvent) {

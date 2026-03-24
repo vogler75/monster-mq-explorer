@@ -2,6 +2,8 @@ import { createMemo, createSignal, createEffect, For } from "solid-js";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { useMessageLog, type LoggedMessage } from "../../stores/messageLog";
 import { useUI } from "../../stores/ui";
+import { useTopicTree } from "../../stores/topics";
+import { getNodeByTopic } from "../../lib/topic-tree";
 import { payloadToString, formatTimestamp } from "../../lib/format";
 
 interface Props {
@@ -42,15 +44,16 @@ export default function MessageTable(props: Props) {
     logAutoScroll, setLogAutoScroll,
     logOrder, setLogOrder,
     logSort, setLogSort,
-    logMessages, liveTopics, recentlyUpdated, clearLog,
+    logMessages, liveTopics, recentlyUpdated, clearLog, seedLiveFromTree,
   } = useMessageLog();
+  const { topicTree } = useTopicTree();
 
   const [colTime, setColTime] = createSignal(100);
   const [colTopic, setColTopic] = createSignal(300);
   const [colQos, setColQos] = createSignal(36);
   const [colRetain, setColRetain] = createSignal(24);
   const [payloadMultiline, setPayloadMultiline] = createSignal(false);
-  const { flashEnabled } = useUI();
+  const { flashEnabled, selectedTopic } = useUI();
 
   let scrollRef!: HTMLDivElement;
   let multilineRef!: HTMLDivElement;
@@ -151,6 +154,13 @@ export default function MessageTable(props: Props) {
             const next = logMode() === "history" ? "live" : "history";
             setLogMode(next);
             setLogSort(next === "live" ? "topic" : "time");
+            if (next === "live") {
+              const topic = selectedTopic();
+              if (topic) {
+                const node = getNodeByTopic(topicTree, topic);
+                if (node) seedLiveFromTree(node);
+              }
+            }
           }}
           title={logMode() === "live" ? "Live view: one row per topic (click for history)" : "History view: all messages (click for live)"}
         >

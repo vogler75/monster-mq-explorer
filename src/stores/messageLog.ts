@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import type { SerializedMessage } from "../workers/mqtt.protocol";
+import type { TopicNode } from "../types/mqtt";
 
 export interface LoggedMessage {
   id: number;
@@ -78,6 +79,27 @@ export function useMessageLog() {
     clearLog() {
       setLogMessages([]);
       setLiveTopics(reconcile({}));
+    },
+
+    seedLiveFromTree(node: TopicNode) {
+      setLiveTopics(
+        produce((live) => {
+          function walk(n: TopicNode) {
+            if (n.lastMessage && n.fullTopic) {
+              live[n.fullTopic] = {
+                id: live[n.fullTopic]?.id ?? ++idCounter,
+                topic: n.fullTopic,
+                payload: n.lastMessage.payload,
+                qos: n.lastMessage.qos,
+                retain: n.lastMessage.retain,
+                timestamp: n.lastMessage.timestamp,
+              };
+            }
+            for (const child of Object.values(n.children)) walk(child);
+          }
+          walk(node);
+        })
+      );
     },
   };
 }

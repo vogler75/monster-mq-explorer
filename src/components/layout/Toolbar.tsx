@@ -11,7 +11,7 @@ interface Props {
 
 export default function Toolbar(props: Props) {
   const { connections, activeConnectionId } = useConnections();
-  const { totalMessages, messagesPerSecond } = useTopicTree();
+  const { messagesPerSecond } = useTopicTree();
   const { connectionStatus, setShowSubscriptionModal, flashEnabled, toggleFlashEnabled } = useUI();
 
   const [pickerOpen, setPickerOpen] = createSignal(false);
@@ -57,7 +57,6 @@ export default function Toolbar(props: Props) {
       {/* Stats */}
       <Show when={connectionStatus() === "connected"}>
         <div class="flex items-center gap-3 text-xs text-slate-400">
-          <span>{totalMessages().toLocaleString()} msgs</span>
           <span>{messagesPerSecond()} msg/s</span>
           <button
             class="p-0.5 rounded transition-colors"
