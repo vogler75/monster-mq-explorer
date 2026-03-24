@@ -118,6 +118,14 @@ export default function MessageTable(props: Props) {
     });
   });
 
+  function trimTopic(topic: string): string {
+    const prefix = selectedTopic();
+    if (!prefix) return topic;
+    if (topic === prefix) return ".";
+    if (topic.startsWith(prefix + "/")) return topic.slice(prefix.length + 1);
+    return topic;
+  }
+
   const thBase = "relative shrink-0 px-1 flex items-center text-slate-400 font-medium select-none overflow-hidden";
   const tdBase = "shrink-0 px-1 truncate";
 
@@ -295,7 +303,7 @@ export default function MessageTable(props: Props) {
                       onClick={() => { const m = msg(); if (m) props.onSelectMessage(props.selectedMessageId === m.id ? null : m); }}
                     >
                       <div class={tdBase + " text-slate-500"} style={{ width: `${colTime()}px` }}>{msg() ? formatTimestamp(msg()!.timestamp) : ""}</div>
-                      <div class={tdBase + " text-slate-300"} style={{ width: `${colTopic()}px` }}>{msg()?.topic ?? ""}</div>
+                      <div class={tdBase + " text-slate-300"} style={{ width: `${colTopic()}px` }}>{msg() ? trimTopic(msg()!.topic) : ""}</div>
                       <div class={tdBase + " text-center text-slate-500"} style={{ width: `${colQos()}px` }}>{msg()?.qos ?? ""}</div>
                       <div class={tdBase + " text-center text-amber-500"} style={{ width: `${colRetain()}px` }}>{msg()?.retain ? "R" : ""}</div>
                       <div class="flex-1 px-1 truncate text-slate-300">{msg() ? payloadToString(msg()!.payload) : ""}</div>
@@ -321,7 +329,7 @@ export default function MessageTable(props: Props) {
                   onClick={() => props.onSelectMessage(props.selectedMessageId === msg.id ? null : msg)}
                 >
                   <div class="shrink-0 px-1 text-slate-500 pt-0.5" style={{ width: `${colTime()}px` }}>{formatTimestamp(msg.timestamp)}</div>
-                  <div class="shrink-0 px-1 text-slate-300 truncate pt-0.5" style={{ width: `${colTopic()}px` }}>{msg.topic}</div>
+                  <div class="shrink-0 px-1 text-slate-300 truncate pt-0.5" style={{ width: `${colTopic()}px` }}>{trimTopic(msg.topic)}</div>
                   <div class="shrink-0 px-1 text-center text-slate-500 pt-0.5" style={{ width: `${colQos()}px` }}>{msg.qos}</div>
                   <div class="shrink-0 px-1 text-center text-amber-500 pt-0.5" style={{ width: `${colRetain()}px` }}>{msg.retain ? "R" : ""}</div>
                   <div class="flex-1 px-1 text-slate-300 whitespace-pre-wrap break-all">{payloadToString(msg.payload)}</div>
