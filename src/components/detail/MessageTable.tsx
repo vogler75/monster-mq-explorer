@@ -36,14 +36,16 @@ function startColResize(
 export default function MessageTable(props: Props) {
   const {
     logEnabled, setLogEnabled,
+    logMode, setLogMode,
     logMaxRows, setLogMaxRows,
     logAutoScroll, setLogAutoScroll,
     logOrder, setLogOrder,
-    logMessages, clearLog,
+    logSort, setLogSort,
+    logMessages, liveTopics, recentlyUpdated, clearLog,
   } = useMessageLog();
 
-  const [colTime, setColTime] = createSignal(84);
-  const [colTopic, setColTopic] = createSignal(140);
+  const [colTime, setColTime] = createSignal(100);
+  const [colTopic, setColTopic] = createSignal(300);
   const [colQos, setColQos] = createSignal(36);
   const [colRetain, setColRetain] = createSignal(24);
   const [payloadMultiline, setPayloadMultiline] = createSignal(false);
@@ -52,8 +54,30 @@ export default function MessageTable(props: Props) {
   let multilineRef!: HTMLDivElement;
 
   const displayMessages = createMemo(() => {
-    const msgs = logMessages as LoggedMessage[];
-    return logOrder() === "newest-top" ? [...msgs].reverse() : msgs;
+    let msgs: LoggedMessage[];
+    if (logMode() === "live") {
+      msgs = Object.values(liveTopics) as LoggedMessage[];
+      const order = logOrder();
+      if (logSort() === "topic") {
+        msgs = [...msgs].sort((a, b) =>
+          order === "newest-bottom" ? a.topic.localeCompare(b.topic) : b.topic.localeCompare(a.topic)
+        );
+      } else {
+        msgs = [...msgs].sort((a, b) =>
+          order === "newest-bottom" ? a.timestamp - b.timestamp : b.timestamp - a.timestamp
+        );
+      }
+    } else {
+      msgs = logMessages as LoggedMessage[];
+      if (logSort() === "topic") {
+        msgs = [...msgs].sort((a, b) =>
+          logOrder() === "newest-bottom" ? a.topic.localeCompare(b.topic) : b.topic.localeCompare(a.topic)
+        );
+      } else {
+        msgs = logOrder() === "newest-top" ? [...msgs].reverse() : msgs;
+      }
+    }
+    return msgs;
   });
 
   const virtualizer = createVirtualizer({
@@ -66,7 +90,7 @@ export default function MessageTable(props: Props) {
   // Auto-scroll (virtualized mode)
   createEffect(() => {
     const count = displayMessages().length;
-    if (count === 0 || !logAutoScroll() || payloadMultiline()) return;
+    if (count === 0 || !logAutoScroll() || payloadMultiline() || logMode() === "live") return;
     queueMicrotask(() => {
       virtualizer.scrollToIndex(
         logOrder() === "newest-top" ? 0 : count - 1,
@@ -78,7 +102,7 @@ export default function MessageTable(props: Props) {
   // Auto-scroll (multiline mode)
   createEffect(() => {
     displayMessages().length; // track
-    if (!logAutoScroll() || !payloadMultiline()) return;
+    if (!logAutoScroll() || !payloadMultiline() || logMode() === "live") return;
     queueMicrotask(() => {
       if (!multilineRef) return;
       if (logOrder() === "newest-top") {
@@ -96,6 +120,15 @@ export default function MessageTable(props: Props) {
     <div class="flex flex-col h-full">
       {/* Toolbar */}
       <div class="flex items-center gap-3 px-2 py-1 border-b border-slate-700 bg-slate-800/60 text-xs shrink-0">
+        <button
+          class="p-0.5 text-slate-500 hover:text-red-400 transition-colors"
+          onClick={() => { clearLog(); props.onSelectMessage(null); }}
+          title="Clear log"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4M5 6v4M9 6v4" />
+          </svg>
+        </button>
         <label class="flex items-center gap-1.5 cursor-pointer">
           <input
             type="checkbox"
@@ -103,17 +136,50 @@ export default function MessageTable(props: Props) {
             checked={logEnabled()}
             onChange={(e) => setLogEnabled(e.currentTarget.checked)}
           />
-          <span class="text-slate-300">Log</span>
+          <span class="text-slate-300">Active</span>
         </label>
-        <label class="flex items-center gap-1">
-          <span class="text-slate-500">Max</span>
-          <input
-            type="number"
-            class="w-16 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500"
-            value={logMaxRows()}
-            onBlur={(e) => setLogMaxRows(Math.max(10, parseInt(e.currentTarget.value) || 500))}
-          />
-        </label>
+        {logMode() === "history" && (
+          <label class="flex items-center gap-1">
+            <span class="text-slate-500">Max</span>
+            <input
+              type="number"
+              class="w-16 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500"
+              value={logMaxRows()}
+              onBlur={(e) => setLogMaxRows(Math.max(10, parseInt(e.currentTarget.value) || 500))}
+            />
+          </label>
+        )}
+        {/* Mode toggle */}
+        <button
+          class="p-0.5 rounded transition-colors"
+          classList={{
+            "text-blue-400 bg-blue-400/10": logMode() === "live",
+            "text-slate-500 hover:text-slate-300": logMode() === "history",
+          }}
+          onClick={() => setLogMode((m) => m === "history" ? "live" : "history")}
+          title={logMode() === "live" ? "Live view: one row per topic (click for history)" : "History view: all messages (click for live)"}
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="7" cy="7" r="2" />
+            <path d="M7 1v2M7 11v2M1 7h2M11 7h2" />
+          </svg>
+        </button>
+        {/* Sort toggle */}
+        <button
+          class="p-0.5 rounded transition-colors"
+          classList={{
+            "text-blue-400 bg-blue-400/10": logSort() === "topic",
+            "text-slate-500 hover:text-slate-300": logSort() === "time",
+          }}
+          onClick={() => setLogSort((s) => s === "time" ? "topic" : "time")}
+          title={logSort() === "topic" ? "Sorted by topic (click for time)" : "Sorted by time (click for topic)"}
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            {logSort() === "topic"
+              ? <path d="M2 3h10M2 7h6M2 11h3" />
+              : <path d="M2 3h5M2 7h4M2 11h3M10 2v9M8 9l2 2 2-2" />}
+          </svg>
+        </button>
         <button
           class="p-0.5 rounded transition-colors"
           classList={{
@@ -130,7 +196,9 @@ export default function MessageTable(props: Props) {
         <button
           class="p-0.5 rounded text-slate-400 hover:text-slate-200 transition-colors"
           onClick={() => setLogOrder((o) => o === "newest-top" ? "newest-bottom" : "newest-top")}
-          title={logOrder() === "newest-top" ? "Newest on top" : "Newest on bottom"}
+          title={logOrder() === "newest-top"
+            ? (logSort() === "topic" ? "Z-A (click for A-Z)" : "Newest on top (click for bottom)")
+            : (logSort() === "topic" ? "A-Z (click for Z-A)" : "Newest on bottom (click for top)")}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             {logOrder() === "newest-top"
@@ -152,15 +220,6 @@ export default function MessageTable(props: Props) {
           </svg>
         </button>
         <span class="text-slate-500">{displayMessages().length} rows</span>
-        <button
-          class="ml-auto text-slate-500 hover:text-red-400 transition-colors"
-          onClick={() => { clearLog(); props.onSelectMessage(null); }}
-          title="Clear log"
-        >
-          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4M5 6v4M9 6v4" />
-          </svg>
-        </button>
       </div>
 
       {/* Column headers */}
@@ -218,7 +277,10 @@ export default function MessageTable(props: Props) {
                         height: `${vRow.size}px`, transform: `translateY(${vRow.start}px)`,
                       }}
                       class="flex items-center text-xs cursor-pointer border-b border-slate-800/60 hover:bg-slate-700/40 transition-colors font-mono"
-                      classList={{ "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg()?.id }}
+                      classList={{
+                        "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg()?.id,
+                        "row-updated": logMode() === "live" && recentlyUpdated().has(msg()?.topic ?? ""),
+                      }}
                       onClick={() => { const m = msg(); if (m) props.onSelectMessage(props.selectedMessageId === m.id ? null : m); }}
                     >
                       <div class={tdBase + " text-slate-500"} style={{ width: `${colTime()}px` }}>{msg() ? formatTimestamp(msg()!.timestamp) : ""}</div>
@@ -241,7 +303,10 @@ export default function MessageTable(props: Props) {
               {(msg) => (
                 <div
                   class="flex text-xs cursor-pointer border-b border-slate-800/60 hover:bg-slate-700/40 transition-colors font-mono py-1"
-                  classList={{ "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg.id }}
+                  classList={{
+                    "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg.id,
+                    "row-updated": logMode() === "live" && recentlyUpdated().has(msg.topic),
+                  }}
                   onClick={() => props.onSelectMessage(props.selectedMessageId === msg.id ? null : msg)}
                 >
                   <div class="shrink-0 px-1 text-slate-500 pt-0.5" style={{ width: `${colTime()}px` }}>{formatTimestamp(msg.timestamp)}</div>

@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal, createEffect } from "solid-js";
+import { Show, createMemo, createSignal, createEffect, onMount } from "solid-js";
 import { useUI } from "../../stores/ui";
 import { useTopicTree } from "../../stores/topics";
 import { getNodeByTopic } from "../../lib/topic-tree";
@@ -10,9 +10,11 @@ import { useMessageLog } from "../../stores/messageLog";
 export default function DetailPane() {
   const { selectedTopic } = useUI();
   const { topicTree } = useTopicTree();
-  const { logEnabled, setLogEnabled } = useMessageLog();
+  const { logEnabled, setLogEnabled, clearLog } = useMessageLog();
 
   const [tableHeight, setTableHeight] = createSignal(0);
+
+  onMount(() => setTableHeight(Math.floor(containerRef.getBoundingClientRect().height / 2)));
   const [selectedLogMsg, setSelectedLogMsg] = createSignal<LoggedMessage | null>(null);
 
   let containerRef!: HTMLDivElement;
@@ -23,10 +25,11 @@ export default function DetailPane() {
     return getNodeByTopic(topicTree, topic);
   });
 
-  // Clear selected log row when topic changes
+  // Clear log and selection when topic changes
   createEffect(() => {
     selectedTopic();
     setSelectedLogMsg(null);
+    clearLog();
   });
 
   function startSplitResize(e: MouseEvent) {
@@ -53,7 +56,7 @@ export default function DetailPane() {
   return (
     <div ref={containerRef!} class="flex-1 flex flex-col overflow-hidden bg-slate-900 min-w-0">
       {/* Table toggle strip */}
-      <div class="flex items-center justify-end px-3 py-0.5 border-b border-slate-700 bg-slate-800/40 shrink-0">
+      <div class="flex items-center px-3 py-0.5 border-b border-slate-700 bg-slate-800/40 shrink-0">
         <button
           class="flex items-center gap-1.5 text-xs transition-colors"
           classList={{
@@ -62,7 +65,7 @@ export default function DetailPane() {
           }}
           onClick={() => {
             const opening = tableHeight() === 0;
-            setTableHeight(opening ? 240 : 0);
+            setTableHeight(opening ? Math.floor(containerRef.getBoundingClientRect().height / 2) : 0);
             setLogEnabled(opening);
           }}
           title={tableHeight() > 0 ? "Hide message log" : "Show message log"}
@@ -71,7 +74,7 @@ export default function DetailPane() {
             <rect x="1" y="2" width="12" height="10" rx="1" />
             <path d="M1 5h12M5 5v7" />
           </svg>
-          <span>Log</span>
+          <span>Table</span>
         </button>
       </div>
 
