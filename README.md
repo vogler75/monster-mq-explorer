@@ -4,7 +4,7 @@ A high-performance MQTT client built for developers who need more than just a me
 
 Born out of frustration with existing tools that grind to a halt once the topic tree starts filling up — Monster stays fast no matter how many topics or messages come in.
 
-![Monster MQTT Explorer](public/screenshot.png)
+![Monster MQTT Explorer](doc/Monster-MQTT-Explorer-1.png)
 
 ## Why Monster?
 
