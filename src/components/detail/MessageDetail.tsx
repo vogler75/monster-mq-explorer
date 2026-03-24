@@ -63,17 +63,24 @@ export default function MessageDetail(props: Props) {
   });
 
   const [picUrl, setPicUrl] = createSignal<string | null>(null);
+  const [picLive, setPicLive] = createSignal(false);
+  let prevPicUrl = "";
 
+  function buildPicUrl(payload: Uint8Array) {
+    if (prevPicUrl) URL.revokeObjectURL(prevPicUrl);
+    const url = URL.createObjectURL(new Blob([payload], { type: detectMimeType(payload) }));
+    prevPicUrl = url;
+    setPicUrl(url);
+  }
+
+  // Auto-update when live mode is on and we're on the Pic tab
   createEffect(() => {
     const msg = activeMessage();
-    const prev = picUrl();
-    if (prev) URL.revokeObjectURL(prev);
-    if (!msg || activeTab() !== "pic") { setPicUrl(null); return; }
-    const blob = new Blob([msg.payload], { type: detectMimeType(msg.payload) });
-    setPicUrl(URL.createObjectURL(blob));
+    if (!msg || activeTab() !== "pic" || !picLive()) return;
+    buildPicUrl(msg.payload);
   });
 
-  onCleanup(() => { const u = picUrl(); if (u) URL.revokeObjectURL(u); });
+  onCleanup(() => { if (prevPicUrl) URL.revokeObjectURL(prevPicUrl); });
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "formatted", label: "Formatted" },
@@ -172,23 +179,54 @@ export default function MessageDetail(props: Props) {
               {hexStr()}
             </pre>
           ) : (
-            <Show when={picUrl()} fallback={
-              <div class="text-slate-500 text-sm">Loading image…</div>
-            }>
-              {(url) => (
-                <img
-                  src={url()}
-                  alt="payload"
-                  class="max-w-full rounded border border-slate-700"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).replaceWith(
-                    Object.assign(document.createElement("div"), {
-                      className: "text-slate-500 text-sm",
-                      textContent: "Payload could not be displayed as an image.",
-                    })
-                  ); }}
-                />
-              )}
-            </Show>
+            <div class="flex flex-col gap-3">
+              <div class="flex items-center gap-2">
+                <button
+                  class="px-2.5 py-1 text-xs rounded transition-colors"
+                  classList={{
+                    "bg-blue-600/20 text-blue-400 border border-blue-600/40": picLive(),
+                    "bg-slate-700 text-slate-300 hover:bg-slate-600": !picLive(),
+                  }}
+                  onClick={() => {
+                    const next = !picLive();
+                    setPicLive(next);
+                    if (next) {
+                      const msg = activeMessage();
+                      if (msg) buildPicUrl(msg.payload);
+                    }
+                  }}
+                >
+                  Live
+                </button>
+                <Show when={!picLive()}>
+                  <button
+                    class="px-2.5 py-1 text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 rounded transition-colors"
+                    onClick={() => { const msg = activeMessage(); if (msg) buildPicUrl(msg.payload); }}
+                  >
+                    Show
+                  </button>
+                </Show>
+              </div>
+              <Show when={picUrl()} fallback={
+                <div class="text-slate-500 text-sm">Press Show or enable Live to render the payload as an image.</div>
+              }>
+                {(url) => (
+                  <img
+                    src={url()}
+                    alt="payload"
+                    class="max-w-full rounded border border-slate-700"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).replaceWith(
+                        Object.assign(document.createElement("div"), {
+                          className: "text-slate-500 text-sm",
+                          textContent: "Payload could not be displayed as an image.",
+                        })
+                      );
+                    }}
+                  />
+                )}
+              </Show>
+            </div>
           )}
         </Show>
       </div>
