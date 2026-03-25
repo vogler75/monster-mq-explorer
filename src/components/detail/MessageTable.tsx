@@ -76,12 +76,6 @@ export default function MessageTable(props: Props) {
   const [jsonColumnsEnabled, setJsonColumnsEnabled] = createSignal(false);
   const [jsonColWidths, setJsonColWidths] = createStore<Record<string, number>>({});
 
-  // Multi-select state for the table rows (by topic string)
-  const [tableSelected, setTableSelected] = createSignal<Set<string>>(new Set<string>());
-  // Last clicked index for shift-select
-  let lastClickedIdx = -1;
-  let lastClickedAdded = true;
-
   // Watchlist UI state
   const [showWatchlistMenu, setShowWatchlistMenu] = createSignal(false);
   const [saveNameInput, setSaveNameInput] = createSignal("");
@@ -110,18 +104,23 @@ export default function MessageTable(props: Props) {
   let multilineRef!: HTMLDivElement;
 
   const displayMessages = createMemo(() => {
+    const pinned = pinnedTopics();
     let msgs: LoggedMessage[];
     if (logMode() === "live") {
       msgs = Object.values(liveTopics) as LoggedMessage[];
       const order = logOrder();
       if (logSort() === "topic") {
-        msgs = [...msgs].sort((a, b) =>
-          order === "newest-bottom" ? a.topic.localeCompare(b.topic) : b.topic.localeCompare(a.topic)
-        );
+        msgs = [...msgs].sort((a, b) => {
+          const pa = pinned.has(a.topic), pb = pinned.has(b.topic);
+          if (pa !== pb) return pa ? -1 : 1;
+          return order === "newest-bottom" ? a.topic.localeCompare(b.topic) : b.topic.localeCompare(a.topic);
+        });
       } else {
-        msgs = [...msgs].sort((a, b) =>
-          order === "newest-bottom" ? a.timestamp - b.timestamp : b.timestamp - a.timestamp
-        );
+        msgs = [...msgs].sort((a, b) => {
+          const pa = pinned.has(a.topic), pb = pinned.has(b.topic);
+          if (pa !== pb) return pa ? -1 : 1;
+          return order === "newest-bottom" ? a.timestamp - b.timestamp : b.timestamp - a.timestamp;
+        });
       }
     } else {
       msgs = logMessages as LoggedMessage[];
@@ -170,6 +169,7 @@ export default function MessageTable(props: Props) {
   });
 
   function trimTopic(topic: string): string {
+    if (isPinned(topic)) return topic;
     const prefix = selectedTopic();
     if (!prefix) return topic;
     if (topic === prefix) return ".";
@@ -177,59 +177,39 @@ export default function MessageTable(props: Props) {
     return topic;
   }
 
-  // ---- Row multi-select (click on row selects it for pinning) ----
-  function handleRowSelect(e: MouseEvent, index: number) {
+  // ---- Pin column shift-click range tracking ----
+  let lastPinClickedIdx = -1;
+  let lastPinClickedAdded = true;
+
+  function handlePinClick(e: MouseEvent, index: number) {
+    e.stopPropagation(); // don't also trigger the row's detail-select
     const msgs = displayMessages();
     const topic = msgs[index]?.topic;
     if (!topic) return;
 
-    if (e.shiftKey && lastClickedIdx !== -1) {
-      const from = Math.min(lastClickedIdx, index);
-      const to = Math.max(lastClickedIdx, index);
-      setTableSelected((prev) => {
-        const next = new Set(prev);
-        for (let i = from; i <= to; i++) {
-          const t = msgs[i]?.topic;
-          if (!t) continue;
-          if (lastClickedAdded) next.add(t); else next.delete(t);
-        }
-        return next;
-      });
+    if (e.shiftKey && lastPinClickedIdx !== -1) {
+      const from = Math.min(lastPinClickedIdx, index);
+      const to = Math.max(lastPinClickedIdx, index);
+      const topics = msgs.slice(from, to + 1).map((m) => m.topic);
+      if (lastPinClickedAdded) pinTopics(topics); else unpinTopics(topics);
     } else {
-      const wasSelected = tableSelected().has(topic);
-      setTableSelected((prev) => {
-        const next = new Set(prev);
-        if (wasSelected) next.delete(topic); else next.add(topic);
-        return next;
-      });
-      lastClickedIdx = index;
-      lastClickedAdded = !wasSelected;
+      const wasPin = isPinned(topic);
+      if (wasPin) unpinTopics([topic]); else pinTopics([topic]);
+      lastPinClickedIdx = index;
+      lastPinClickedAdded = !wasPin;
     }
   }
 
   function pinSelected() {
-    const sel = tableSelected();
-    if (sel.size === 0) {
-      // Pin all currently visible rows
-      pinTopics(displayMessages().map((m) => m.topic));
-    } else {
-      pinTopics([...sel]);
-      setTableSelected(new Set<string>());
-    }
+    // Pin all currently visible rows
+    pinTopics(displayMessages().map((m) => m.topic));
   }
 
   function unpinSelected() {
-    const sel = tableSelected();
-    if (sel.size === 0) {
-      clearPinned();
-    } else {
-      unpinTopics([...sel]);
-      setTableSelected(new Set<string>());
-    }
+    clearPinned();
   }
 
   const hasPinned = () => pinnedTopics().size > 0;
-  const hasSelected = () => tableSelected().size > 0;
 
   const thBase = "relative shrink-0 px-1 flex items-center text-slate-400 font-medium select-none overflow-hidden";
   const tdBase = "shrink-0 px-1 truncate";
@@ -362,7 +342,7 @@ export default function MessageTable(props: Props) {
             "text-slate-500 hover:text-amber-400": !hasPinned(),
           }}
           onClick={pinSelected}
-          title={hasSelected() ? `Sticky ${tableSelected().size} selected row(s)` : "Sticky all visible rows"}
+          title="Sticky all visible rows"
         >
           {/* Pin icon */}
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -375,7 +355,7 @@ export default function MessageTable(props: Props) {
           <button
             class="p-0.5 rounded text-amber-500 hover:text-red-400 transition-colors"
             onClick={unpinSelected}
-            title={hasSelected() ? "Unpin selected rows" : "Unpin all rows"}
+            title="Unpin all rows"
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M9 1L13 5L9.5 8.5L10 13L7 10L4 13L4.5 8.5L1 5L5 1Z" />
@@ -493,7 +473,6 @@ export default function MessageTable(props: Props) {
         <span class="text-slate-500">
           {displayMessages().length} rows
           {hasPinned() && <span class="ml-1 text-amber-500">{pinnedTopics().size} sticky</span>}
-          {hasSelected() && <span class="ml-1 text-blue-400">{tableSelected().size} sel</span>}
         </span>
         {logMode() === "history" && (
           <label class="flex items-center gap-1 ml-auto">
@@ -565,7 +544,6 @@ export default function MessageTable(props: Props) {
                 {(vRow) => {
                   const msg = () => displayMessages()[vRow.index];
                   const pinned = () => msg() ? isPinned(msg()!.topic) : false;
-                  const rowSelected = () => msg() ? tableSelected().has(msg()!.topic) : false;
                   return (
                     <div
                       style={{
@@ -576,18 +554,21 @@ export default function MessageTable(props: Props) {
                       classList={{
                         "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg()?.id,
                         "bg-amber-500/10": pinned() && props.selectedMessageId !== msg()?.id,
-                        "outline outline-1 outline-blue-500/50 outline-offset-[-1px]": rowSelected(),
                         "row-updated": flashEnabled() && logMode() === "live" && recentlyUpdated().has(msg()?.topic ?? ""),
                       }}
-                      onClick={(e) => {
-                        handleRowSelect(e, vRow.index);
-                        const m = msg();
-                        if (!e.shiftKey && m) props.onSelectMessage(props.selectedMessageId === m.id ? null : m);
-                      }}
+                      onClick={() => { const m = msg(); if (m) props.onSelectMessage(props.selectedMessageId === m.id ? null : m); }}
                     >
-                      {/* Pin indicator */}
-                      <div class="w-4 shrink-0 flex items-center justify-center">
-                        <Show when={pinned()}>
+                      {/* Pin toggle cell — click to sticky/unsticky, shift+click for range */}
+                      <div
+                        class="w-4 shrink-0 flex items-center justify-center hover:bg-slate-600/60 self-stretch cursor-pointer"
+                        onClick={(e) => handlePinClick(e, vRow.index)}
+                        title={pinned() ? "Unsticky" : "Sticky"}
+                      >
+                        <Show when={pinned()} fallback={
+                          <svg class="w-2.5 h-2.5 text-slate-600 opacity-0 group-hover:opacity-100" viewBox="0 0 14 14" fill="currentColor">
+                            <path d="M9 1L13 5L9.5 8.5L10 13L7 10L4 13L4.5 8.5L1 5L5 1Z" />
+                          </svg>
+                        }>
                           <svg class="w-2.5 h-2.5 text-amber-400" viewBox="0 0 14 14" fill="currentColor">
                             <path d="M9 1L13 5L9.5 8.5L10 13L7 10L4 13L4.5 8.5L1 5L5 1Z" />
                           </svg>
@@ -618,25 +599,24 @@ export default function MessageTable(props: Props) {
             <For each={displayMessages()}>
               {(msg, i) => {
                 const pinned = () => isPinned(msg.topic);
-                const rowSelected = () => tableSelected().has(msg.topic);
                 return (
                   <div
                     class="flex text-xs cursor-pointer border-b border-slate-800/60 hover:bg-slate-700/40 transition-colors font-mono py-1"
                     classList={{
                       "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg.id,
                       "bg-amber-500/10": pinned() && props.selectedMessageId !== msg.id,
-                      "outline outline-1 outline-blue-500/50 outline-offset-[-1px]": rowSelected(),
                       "row-updated": flashEnabled() && logMode() === "live" && recentlyUpdated().has(msg.topic),
                     }}
-                    onClick={(e) => {
-                      handleRowSelect(e, i());
-                      if (!e.shiftKey) props.onSelectMessage(props.selectedMessageId === msg.id ? null : msg);
-                    }}
+                    onClick={() => props.onSelectMessage(props.selectedMessageId === msg.id ? null : msg)}
                   >
-                    {/* Pin indicator */}
-                    <div class="w-4 shrink-0 flex items-center justify-center pt-0.5">
+                    {/* Pin toggle cell */}
+                    <div
+                      class="w-4 shrink-0 flex items-center justify-center hover:bg-slate-600/60 self-stretch cursor-pointer"
+                      onClick={(e) => handlePinClick(e, i())}
+                      title={pinned() ? "Unsticky" : "Sticky"}
+                    >
                       <Show when={pinned()}>
-                        <svg class="w-2.5 h-2.5 text-amber-400" viewBox="0 0 14 14" fill="currentColor">
+                        <svg class="w-2.5 h-2.5 text-amber-400 mt-0.5" viewBox="0 0 14 14" fill="currentColor">
                           <path d="M9 1L13 5L9.5 8.5L10 13L7 10L4 13L4.5 8.5L1 5L5 1Z" />
                         </svg>
                       </Show>

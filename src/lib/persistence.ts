@@ -120,3 +120,19 @@ export async function loadWatchlists(): Promise<Watchlist[]> {
 export async function saveWatchlists(watchlists: Watchlist[]): Promise<void> {
   await set(WATCHLISTS_STORAGE_KEY, watchlists);
 }
+
+const PINNED_TOPICS_STORAGE_KEY = "monster-mqtt-explorer.pinnedTopics";
+
+export async function loadPinnedTopics(): Promise<string[]> {
+  try {
+    const stored = await get<unknown>(PINNED_TOPICS_STORAGE_KEY);
+    if (!Array.isArray(stored)) return [];
+    return (stored as unknown[]).filter((t): t is string => typeof t === "string");
+  } catch {
+    return [];
+  }
+}
+
+export async function savePinnedTopics(topics: string[]): Promise<void> {
+  await set(PINNED_TOPICS_STORAGE_KEY, topics);
+}

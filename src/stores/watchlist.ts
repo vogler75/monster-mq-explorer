@@ -1,7 +1,7 @@
-import { createSignal } from "solid-js";
+import { createSignal, createEffect } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import type { Watchlist } from "../types/mqtt";
-import { loadWatchlists, saveWatchlists } from "../lib/persistence";
+import { loadWatchlists, saveWatchlists, loadPinnedTopics, savePinnedTopics } from "../lib/persistence";
 
 /** Topics that are currently pinned (sticky) in the live table. */
 const [pinnedTopics, setPinnedTopics] = createSignal<Set<string>>(new Set());
@@ -9,8 +9,16 @@ const [pinnedTopics, setPinnedTopics] = createSignal<Set<string>>(new Set());
 /** Named saved watchlists. */
 const [watchlists, setWatchlists] = createStore<Watchlist[]>([]);
 
-// Bootstrap persisted watchlists on startup.
+// Bootstrap persisted data on startup.
 loadWatchlists().then((saved: Watchlist[]) => setWatchlists(saved));
+loadPinnedTopics().then((topics) => {
+  if (topics.length > 0) setPinnedTopics(new Set(topics));
+});
+
+// Persist pinned topics whenever they change.
+createEffect(() => {
+  savePinnedTopics([...pinnedTopics()]);
+});
 
 export function useWatchlist() {
   return {
