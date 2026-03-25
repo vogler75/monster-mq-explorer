@@ -15,6 +15,9 @@ export default function TagBrowserModal(props: Props) {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   let lastClickedIndex = -1;
+  // Track whether the anchor click added (true) or removed (false) the row,
+  // so shift-click extends the range in the same direction.
+  let lastClickedAdded = true;
 
   async function browse() {
     setLoading(true);
@@ -23,8 +26,9 @@ export default function TagBrowserModal(props: Props) {
       const browse = props.browseFn ?? loginAndBrowse;
       const result = await browse(props.config, [filter()]);
       setTags(result);
-      setSelected(new Set());
+      setSelected(new Set<string>());
       lastClickedIndex = -1;
+      lastClickedAdded = true;
     } catch (err) {
       setError(String(err));
     } finally {
@@ -37,21 +41,22 @@ export default function TagBrowserModal(props: Props) {
     if (e.shiftKey && lastClickedIndex !== -1) {
       const from = Math.min(lastClickedIndex, index);
       const to = Math.max(lastClickedIndex, index);
-      const adding = !selected().has(list[lastClickedIndex]);
       setSelected((prev) => {
         const next = new Set(prev);
         for (let i = from; i <= to; i++) {
-          if (adding) next.add(list[i]); else next.delete(list[i]);
+          if (lastClickedAdded) next.add(list[i]); else next.delete(list[i]);
         }
         return next;
       });
     } else {
+      const wasSelected = selected().has(list[index]);
       setSelected((prev) => {
         const next = new Set(prev);
-        if (next.has(list[index])) next.delete(list[index]); else next.add(list[index]);
+        if (wasSelected) next.delete(list[index]); else next.add(list[index]);
         return next;
       });
       lastClickedIndex = index;
+      lastClickedAdded = !wasSelected;
     }
   }
 
