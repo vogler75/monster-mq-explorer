@@ -1,59 +1,69 @@
 import { createSignal } from "solid-js";
-import { createStore, produce } from "solid-js/store";
+import { createStore } from "solid-js/store";
 import type { ConnectionConfig, Subscription } from "../types/mqtt";
 import { createDefaultConnection } from "../types/mqtt";
-import { loadConnections, saveConnections } from "../lib/persistence";
+import { loadConnections, saveConnections, importConnections as importConnectionsFromJson, exportConnections as exportConnectionsToJson } from "../lib/persistence";
 
 const [connections, setConnections] = createStore<ConnectionConfig[]>([]);
 const [connectionsLoaded, setConnectionsLoaded] = createSignal(false);
+const [connectionImportError, setConnectionImportError] = createSignal<string | null>(null);
 
-const [activeConnectionId, setActiveConnectionId] = createSignal<
-  string | null
->(null);
+const [activeConnectionId, setActiveConnectionId] = createSignal<string | null>(null);
 
-// Load from server on startup
-loadConnections().then((loaded) => {
-  setConnections(loaded);
-  setConnectionsLoaded(true);
-});
+loadConnections()
+  .then((loaded) => {
+    setConnections(loaded);
+  })
+  .finally(() => {
+    setConnectionsLoaded(true);
+  });
 
-// Debounced persist — called explicitly after mutations
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
-function persistConnections() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saveConnections([...connections]);
-  }, 300);
+let saveQueue = Promise.resolve();
+
+function persistConnections(nextConnections: ConnectionConfig[]) {
+  saveQueue = saveQueue
+    .catch(() => undefined)
+    .then(() => saveConnections(nextConnections));
+}
+
+function resetImportError() {
+  setConnectionImportError(null);
 }
 
 export function useConnections() {
   return {
     connections,
     connectionsLoaded,
+    connectionImportError,
     activeConnectionId,
     setActiveConnectionId,
 
     addConnection(config?: Partial<ConnectionConfig>) {
       const conn = { ...createDefaultConnection(), ...config };
-      setConnections(produce((list) => list.push(conn)));
-      persistConnections();
+      const nextConnections = [...connections, conn];
+      setConnections(nextConnections);
+      void persistConnections(nextConnections);
+      resetImportError();
       return conn;
     },
 
     updateConnection(id: string, updates: Partial<ConnectionConfig>) {
-      setConnections(
-        (c) => c.id === id,
-        produce((c) => Object.assign(c, updates))
+      const nextConnections = connections.map((conn) =>
+        conn.id === id ? { ...conn, ...updates } : conn
       );
-      persistConnections();
+      setConnections(nextConnections);
+      void persistConnections(nextConnections);
+      resetImportError();
     },
 
     removeConnection(id: string) {
-      setConnections((list) => list.filter((c) => c.id !== id));
+      const nextConnections = connections.filter((c) => c.id !== id);
+      setConnections(nextConnections);
       if (activeConnectionId() === id) {
         setActiveConnectionId(null);
       }
-      persistConnections();
+      void persistConnections(nextConnections);
+      resetImportError();
     },
 
     getConnection(id: string) {
@@ -61,36 +71,65 @@ export function useConnections() {
     },
 
     addSubscription(id: string, sub: Subscription) {
-      setConnections(
-        (c) => c.id === id,
-        produce((c) => {
-          if (!c.subscriptions.find((s) => s.topic === sub.topic)) {
-            c.subscriptions.push(sub);
-          }
-        })
-      );
-      persistConnections();
+      const nextConnections = connections.map((conn) => {
+        if (conn.id !== id || conn.subscriptions.find((s) => s.topic === sub.topic)) {
+          return conn;
+        }
+        return { ...conn, subscriptions: [...conn.subscriptions, sub] };
+      });
+      setConnections(nextConnections);
+      void persistConnections(nextConnections);
+      resetImportError();
     },
 
     removeSubscription(id: string, topic: string) {
-      setConnections(
-        (c) => c.id === id,
-        produce((c) => {
-          c.subscriptions = c.subscriptions.filter((s) => s.topic !== topic);
-        })
+      const nextConnections = connections.map((conn) =>
+        conn.id === id
+          ? { ...conn, subscriptions: conn.subscriptions.filter((s) => s.topic !== topic) }
+          : conn
       );
-      persistConnections();
+      setConnections(nextConnections);
+      void persistConnections(nextConnections);
+      resetImportError();
     },
 
     updateSubscription(id: string, topic: string, updates: Partial<Subscription>) {
-      setConnections(
-        (c) => c.id === id,
-        produce((c) => {
-          const sub = c.subscriptions.find((s) => s.topic === topic);
-          if (sub) Object.assign(sub, updates);
-        })
-      );
-      persistConnections();
+      const nextConnections = connections.map((conn) => {
+        if (conn.id !== id) return conn;
+        return {
+          ...conn,
+          subscriptions: conn.subscriptions.map((sub) =>
+            sub.topic === topic ? { ...sub, ...updates } : sub
+          ),
+        };
+      });
+      setConnections(nextConnections);
+      void persistConnections(nextConnections);
+      resetImportError();
+    },
+
+    async importConnections(jsonText: string) {
+      try {
+        const imported = await importConnectionsFromJson(jsonText);
+        setConnections(imported);
+        if (imported.length === 0 || !imported.some((conn) => conn.id === activeConnectionId())) {
+          setActiveConnectionId(imported[0]?.id ?? null);
+        }
+        setConnectionImportError(null);
+        return true;
+      } catch (error) {
+        setConnectionImportError(error instanceof Error ? error.message : "Failed to import connections");
+        return false;
+      }
+    },
+
+    exportConnections() {
+      resetImportError();
+      return exportConnectionsToJson([...connections]);
+    },
+
+    clearConnectionImportError() {
+      setConnectionImportError(null);
     },
   };
 }

@@ -1,4 +1,4 @@
-import { For, Show, onCleanup } from "solid-js";
+import { For, Show, createSignal, onCleanup } from "solid-js";
 import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
 
@@ -8,9 +8,49 @@ interface Props {
 }
 
 export default function ConnectionPicker(props: Props) {
-  const { connections, activeConnectionId, setActiveConnectionId, removeConnection } =
-    useConnections();
+  const {
+    connections,
+    activeConnectionId,
+    setActiveConnectionId,
+    removeConnection,
+    importConnections,
+    exportConnections,
+    connectionImportError,
+    clearConnectionImportError,
+  } = useConnections();
   const { connectionStatus, setShowConnectionModal, setEditingConnectionId } = useUI();
+  const [busy, setBusy] = createSignal(false);
+
+  async function handleImport(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    setBusy(true);
+    clearConnectionImportError();
+
+    try {
+      const text = await file.text();
+      const ok = await importConnections(text);
+      if (ok) props.onClose();
+    } finally {
+      input.value = "";
+      setBusy(false);
+    }
+  }
+
+  function handleExport() {
+    clearConnectionImportError();
+    const blob = new Blob([exportConnections()], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "monster-mqtt-connections.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 
   function handleClickOutside(e: MouseEvent) {
     const target = e.target as HTMLElement;
@@ -93,10 +133,11 @@ export default function ConnectionPicker(props: Props) {
           )}
         </For>
       </div>
-      <div class="border-t border-slate-700 p-2">
+      <div class="border-t border-slate-700 p-2 space-y-2">
         <button
           class="w-full px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors text-left"
           onClick={() => {
+            clearConnectionImportError();
             setEditingConnectionId(null);
             setShowConnectionModal(true);
             props.onClose();
@@ -104,6 +145,24 @@ export default function ConnectionPicker(props: Props) {
         >
           + New Connection
         </button>
+        <div class="flex gap-2">
+          <label class="flex-1 px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors text-center cursor-pointer">
+            Import JSON
+            <input type="file" accept="application/json,.json" class="hidden" onChange={handleImport} disabled={busy()} />
+          </label>
+          <button
+            class="flex-1 px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
+            onClick={handleExport}
+          >
+            Export JSON
+          </button>
+        </div>
+        <Show when={busy()}>
+          <div class="text-[10px] text-slate-500">Importing connections...</div>
+        </Show>
+        <Show when={connectionImportError()}>
+          {(message) => <div class="text-[10px] text-red-400">{message()}</div>}
+        </Show>
       </div>
     </div>
   );

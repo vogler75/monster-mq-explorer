@@ -1,4 +1,6 @@
 node_modules
 dist
 data
+release
 *.local
+.DS_Store
