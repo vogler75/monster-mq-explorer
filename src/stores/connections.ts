@@ -72,9 +72,9 @@ export function useConnections() {
 
     addSubscription(id: string, sub: Subscription) {
       const nextConnections = connections.map((conn) => {
-        if (conn.id !== id || conn.subscriptions.find((s) => s.topic === sub.topic)) {
-          return conn;
-        }
+        if (conn.id !== id) return conn;
+        // Deduplicate only for topic-filter subs (not tag-list subs)
+        if (!sub.tags && conn.subscriptions.find((s) => !s.tags && s.topic === sub.topic)) return conn;
         return { ...conn, subscriptions: [...conn.subscriptions, sub] };
       });
       setConnections(nextConnections);
@@ -82,10 +82,10 @@ export function useConnections() {
       resetImportError();
     },
 
-    removeSubscription(id: string, topic: string) {
+    removeSubscriptionAt(id: string, index: number) {
       const nextConnections = connections.map((conn) =>
         conn.id === id
-          ? { ...conn, subscriptions: conn.subscriptions.filter((s) => s.topic !== topic) }
+          ? { ...conn, subscriptions: conn.subscriptions.filter((_, i) => i !== index) }
           : conn
       );
       setConnections(nextConnections);
