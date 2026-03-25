@@ -82,7 +82,9 @@ export function useWatchlist() {
           list.push({ id: crypto.randomUUID(), name, topics });
         }));
       }
-      saveWatchlists([...watchlists]);
+      // Convert Solid store proxies to plain objects before IDB write —
+      // structuredClone (used by idb-keyval) cannot clone Proxy objects.
+      saveWatchlists(watchlists.map((w) => ({ id: w.id, name: w.name, topics: [...w.topics] })));
     },
 
     loadWatchlist(id: string) {
@@ -98,7 +100,9 @@ export function useWatchlist() {
 
     deleteWatchlist(id: string) {
       setWatchlists((list) => list.filter((w) => w.id !== id));
-      saveWatchlists([...watchlists]);
+      // Convert Solid store proxies to plain objects before IDB write —
+      // structuredClone (used by idb-keyval) cannot clone Proxy objects.
+      saveWatchlists(watchlists.map((w) => ({ id: w.id, name: w.name, topics: [...w.topics] })));
     },
   };
 }
