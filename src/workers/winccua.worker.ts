@@ -7,14 +7,35 @@ declare const __ELECTRON__: boolean;
 import type { WorkerCommand, WorkerEvent, SerializedMessage } from "./mqtt.protocol";
 import type { ConnectionConfig } from "../types/mqtt";
 
+const CHUNK_SIZE = 255;
+
 let activeWs: WebSocket | null = null;
+let activeSubIds: string[] = [];
+let activeTagPathSplitters: string[] = ["::"];
 let pendingMessages: SerializedMessage[] = [];
 let flushInterval: ReturnType<typeof setInterval> | null = null;
 const encoder = new TextEncoder();
 
-function tagNameToTopic(name: string): string {
-  // System1::Tag1.SubTag -> System1/Tag1/SubTag
-  return name.replace(/::/g, "/").replace(/\./g, "/");
+// Per-subscription state used to detect and retry failed tags after "Added" notifications
+interface SubState {
+  tags: string[];
+  pendingAdded: Set<string>; // tags not yet seen in an "Added" notification
+  failedTags: Set<string>;   // tags whose "Added" had error.code !== "0"
+}
+const subStates = new Map<string, SubState>();
+let subIdCounter = 0;
+
+function nextSubId(): string {
+  subIdCounter += 1;
+  return `sub${subIdCounter}`;
+}
+
+function tagNameToTopic(name: string, splitters: string[]): string {
+  let result = name;
+  for (const s of splitters) {
+    result = result.split(s).join("/");
+  }
+  return result;
 }
 
 function startFlushing() {
@@ -50,13 +71,34 @@ function wsSend(socket: WebSocket, msg: object) {
   socket.send(text);
 }
 
+function buildQuery(tags: string[]): string {
+  return `subscription {
+  tagValues(names: ${JSON.stringify(tags)}) {
+    name
+    value { value quality { quality subStatus } }
+    error { code description }
+    notificationReason
+  }
+}`;
+}
+
+function sendSubscribe(socket: WebSocket, tags: string[]): string {
+  const id = nextSubId();
+  subStates.set(id, {
+    tags,
+    pendingAdded: new Set(tags),
+    failedTags: new Set(),
+  });
+  activeSubIds.push(id);
+  console.log(`[WinCC UA] subscribe ${id} (${tags.length} tags)`);
+  wsSend(socket, { type: "subscribe", id, payload: { query: buildQuery(tags) } });
+  return id;
+}
+
 async function graphqlPost(url: string, body: object, token?: string): Promise<unknown> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  // In the browser dev environment the request would be blocked by CORS.
-  // Route through the Vite dev-server proxy instead. In Electron there is no
-  // same-origin restriction so we can fetch the target URL directly.
   let fetchUrl = url;
   if (!__ELECTRON__) {
     headers["X-Wincc-Target"] = url;
@@ -69,6 +111,12 @@ async function graphqlPost(url: string, body: object, token?: string): Promise<u
 }
 
 async function connectToWinCCUA(config: ConnectionConfig) {
+  activeTagPathSplitters = ["::"].concat(
+    config.tagPathSplit
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && s !== "::")
+  );
   const http = httpUrl(config);
 
   // Step 1 — Authenticate and obtain a Bearer token
@@ -122,9 +170,12 @@ async function connectToWinCCUA(config: ConnectionConfig) {
       return;
     }
     const allResults = result.data?.browse ?? [];
-    tagNames = allResults
+    const allTagNames = allResults
       .filter((r) => r.objectType?.toUpperCase().includes("TAG"))
       .map((r) => r.name);
+    tagNames = allTagNames.filter((name) => !name.includes("@"));
+    const skipped = allTagNames.length - tagNames.length;
+    console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length} (skipped ${skipped} internal tags with @)`);
     console.log("[WinCC UA] Tags to subscribe:", tagNames);
   } catch (err) {
     self.postMessage({ type: "error", message: `Browse request failed: ${err}` } as WorkerEvent);
@@ -139,20 +190,21 @@ async function connectToWinCCUA(config: ConnectionConfig) {
   }
 
   // Step 3 — Subscribe via graphql-transport-ws protocol (raw WebSocket).
-  const ws = wsUrl(config);
-  const subscriptionQuery = `subscription {
-  tagValues(names: ${JSON.stringify(tagNames)}) {
-    name
-    value { value }
-    error { code description }
-    notificationReason
+  // Tags are split into chunks of CHUNK_SIZE to stay within server limits.
+  const chunks: string[][] = [];
+  for (let i = 0; i < tagNames.length; i += CHUNK_SIZE) {
+    chunks.push(tagNames.slice(i, i + CHUNK_SIZE));
   }
-}`;
+  console.log(`[WinCC UA] Subscribing to ${tagNames.length} tags in ${chunks.length} chunk(s) of max ${CHUNK_SIZE}`);
+
+  const ws = wsUrl(config);
   console.log("[WinCC UA] WebSocket URL:", ws);
-  console.log("[WinCC UA] Subscription query:\n", subscriptionQuery);
 
   const socket = new WebSocket(ws, "graphql-transport-ws");
   activeWs = socket;
+  subIdCounter = 0;
+  activeSubIds = [];
+  subStates.clear();
 
   socket.onopen = () => {
     console.log("[WinCC UA] WS open — sending connection_init");
@@ -170,29 +222,55 @@ async function connectToWinCCUA(config: ConnectionConfig) {
       console.warn("[WinCC UA] WS unparseable message:", event.data);
       return;
     }
-    if (msg.type !== "next") console.log("[WinCC UA] WS recv ←", JSON.stringify(msg));
+    console.log("[WinCC UA] WS recv ←", JSON.stringify(msg));
 
     switch (msg.type) {
       case "connection_ack":
-        console.log("[WinCC UA] connection_ack — sending subscribe");
-        wsSend(socket, {
-          type: "subscribe",
-          id: "sub1",
-          payload: { query: subscriptionQuery },
-        });
+        console.log(`[WinCC UA] connection_ack — sending ${chunks.length} subscribe(s)`);
+        chunks.forEach((chunk) => sendSubscribe(socket, chunk));
         self.postMessage({ type: "connected" } as WorkerEvent);
         startFlushing();
         break;
 
       case "next": {
-        type Notification = { name: string; value?: { value: unknown }; notificationReason?: string };
+        type TagError = { code: string; description: string };
+        type Quality = { quality?: string; subStatus?: string };
+        type Notification = { name: string; value?: { value: unknown; quality?: Quality }; error?: TagError; notificationReason?: string };
         const n = (msg.payload as { data?: { tagValues?: Notification } })?.data?.tagValues;
         if (!n?.name) return;
+
+        // Track "Added" notifications to detect failed tags and retry without them
+        if (n.notificationReason === "Added") {
+          const state = subStates.get(msg.id ?? "");
+          if (state) {
+            state.pendingAdded.delete(n.name);
+            if (n.error && n.error.code !== "0") {
+              state.failedTags.add(n.name);
+              console.warn(`[WinCC UA] Tag subscription failed (${msg.id}): ${n.name} — ${n.error.description}`);
+            }
+            // Once all Added notifications received, retry without failed tags
+            if (state.pendingAdded.size === 0 && state.failedTags.size > 0) {
+              console.log(`[WinCC UA] ${msg.id}: ${state.failedTags.size} failed tag(s), retrying ${state.tags.length - state.failedTags.size} good tag(s)`);
+              wsSend(socket, { type: "complete", id: msg.id });
+              activeSubIds = activeSubIds.filter((id) => id !== msg.id);
+              subStates.delete(msg.id ?? "");
+              const goodTags = state.tags.filter((t) => !state.failedTags.has(t));
+              if (goodTags.length > 0) sendSubscribe(socket, goodTags);
+            }
+          }
+          return; // don't emit "Added" as a message value
+        }
+
         const payload = encoder.encode(
-          JSON.stringify({ name: n.name, value: n.value?.value ?? null })
+          JSON.stringify({
+            name: n.name,
+            value: n.value?.value ?? null,
+            quality: n.value?.quality?.quality ?? null,
+            subStatus: n.value?.quality?.subStatus ?? null,
+          })
         );
         pendingMessages.push({
-          topic: tagNameToTopic(n.name),
+          topic: tagNameToTopic(n.name, activeTagPathSplitters),
           payload,
           qos: 0,
           retain: false,
@@ -202,17 +280,15 @@ async function connectToWinCCUA(config: ConnectionConfig) {
       }
 
       case "error":
-        console.error("[WinCC UA] subscription error:", JSON.stringify(msg.payload));
-        self.postMessage({ type: "error", message: `Subscription error: ${JSON.stringify(msg.payload)}` } as WorkerEvent);
+        console.error(`[WinCC UA] subscription error (${msg.id}):`, JSON.stringify(msg.payload));
+        self.postMessage({ type: "error", message: `Subscription error (${msg.id}): ${JSON.stringify(msg.payload)}` } as WorkerEvent);
         break;
 
       case "complete":
-        console.log("[WinCC UA] subscription complete");
-        stopFlushing();
+        console.log(`[WinCC UA] subscription complete (${msg.id})`);
         break;
 
       case "ping":
-        // graphql-transport-ws requires responding to pings
         wsSend(socket, { type: "pong" });
         break;
     }
@@ -237,12 +313,16 @@ function disconnectFromWinCCUA() {
   if (activeWs) {
     try {
       if (activeWs.readyState === WebSocket.OPEN) {
-        activeWs.send(JSON.stringify({ type: "complete", id: "sub1" }));
+        for (const id of activeSubIds) {
+          activeWs.send(JSON.stringify({ type: "complete", id }));
+        }
       }
     } catch { /* ignore */ }
     activeWs.close();
     activeWs = null;
   }
+  activeSubIds = [];
+  subStates.clear();
   stopFlushing();
   pendingMessages = [];
 }

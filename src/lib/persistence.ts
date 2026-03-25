@@ -38,6 +38,7 @@ function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig
       ? input.clientId
       : defaults.clientId,
     subscriptions,
+    tagPathSplit: typeof input.tagPathSplit === "string" ? input.tagPathSplit : "",
   };
 }
 

@@ -10,6 +10,9 @@ export interface ConnectionConfig {
   password: string;
   clientId: string;
   subscriptions: Subscription[];
+  /** WinCC UA: comma-separated list of substrings that are replaced with '/' when
+   *  converting a tag name to a topic path. E.g. "::" or "::, ." */
+  tagPathSplit: string;
 }
 
 export interface Subscription {
@@ -55,6 +58,7 @@ export function createDefaultConnection(): ConnectionConfig {
     password: "",
     clientId: `monster-mqtt-${Math.random().toString(36).slice(2, 8)}`,
     subscriptions: [{ topic: "#", qos: 0 }],
+    tagPathSplit: "",
   };
 }
 
@@ -71,5 +75,6 @@ export function createDefaultWinCCUAConnection(): ConnectionConfig {
     password: "",
     clientId: "",
     subscriptions: [{ topic: "*", qos: 0 }],
+    tagPathSplit: "",
   };
 }

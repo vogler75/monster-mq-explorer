@@ -1,4 +1,5 @@
 import { createSignal, For, Show } from "solid-js";
+import { createStore } from "solid-js/store";
 import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
 import type { ConnectionConfig, Subscription } from "../../types/mqtt";
@@ -25,7 +26,8 @@ export default function ConnectionModal() {
   const [username, setUsername] = createSignal(defaults().username);
   const [password, setPassword] = createSignal(defaults().password);
   const [clientId, setClientId] = createSignal(defaults().clientId);
-  const [subscriptions, setSubscriptions] = createSignal<Subscription[]>([
+  const [tagPathSplit, setTagPathSplit] = createSignal(defaults().tagPathSplit ?? "::");
+  const [subscriptions, setSubscriptions] = createStore<Subscription[]>([
     ...defaults().subscriptions,
   ]);
 
@@ -36,26 +38,23 @@ export default function ConnectionModal() {
     setPort(template.port);
     setPath(template.path);
     setClientId(template.clientId);
-    setSubscriptions([...template.subscriptions]);
+    setTagPathSplit(template.tagPathSplit ?? "::");
+    setSubscriptions([...template.subscriptions] as Subscription[]);
     if (name() === createDefaultConnection().name || name() === createDefaultWinCCUAConnection().name) {
       setName(template.name);
     }
   }
 
   function addSub() {
-    setSubscriptions([...subscriptions(), { topic: "", qos: 0 }]);
+    setSubscriptions(subscriptions.length, { topic: "", qos: 0 });
   }
 
   function removeSub(index: number) {
-    setSubscriptions(subscriptions().filter((_, i) => i !== index));
+    setSubscriptions((s) => s.filter((_, i) => i !== index));
   }
 
   function updateSub(index: number, field: keyof Subscription, value: string | number) {
-    setSubscriptions(
-      subscriptions().map((s, i) =>
-        i === index ? { ...s, [field]: value } : s
-      )
-    );
+    setSubscriptions(index, field as any, value);
   }
 
   function handleSave() {
@@ -69,7 +68,8 @@ export default function ConnectionModal() {
       username: username(),
       password: password(),
       clientId: clientId(),
-      subscriptions: subscriptions().filter((s) => s.topic.trim() !== ""),
+      tagPathSplit: tagPathSplit(),
+      subscriptions: subscriptions.filter((s) => s.topic.trim() !== ""),
     };
 
     if (isEditing()) {
@@ -222,6 +222,22 @@ export default function ConnectionModal() {
             </div>
           </Show>
 
+          {/* Tag path splitting — WinCC UA only */}
+          <Show when={connectionType() === "winccua"}>
+            <div>
+              <label class={labelClass}>Replace with / (comma-separated)</label>
+              <input
+                class={inputClass}
+                placeholder="e.g. ."
+                value={tagPathSplit()}
+                onInput={(e) => setTagPathSplit(e.currentTarget.value)}
+              />
+              <span class="text-xs text-slate-500">
+                <code class="text-slate-400">::</code> is always replaced. Add <code class="text-slate-400">.</code> to also split on element hierarchy.
+              </span>
+            </div>
+          </Show>
+
           {/* Subscriptions / Tag Filters */}
           <div>
             <div class="flex items-center justify-between mb-1">
@@ -236,7 +252,7 @@ export default function ConnectionModal() {
               </button>
             </div>
             <div class="space-y-1.5">
-              <For each={subscriptions()}>
+              <For each={subscriptions}>
                 {(sub, index) => (
                   <div class="flex gap-2 items-center">
                     <input
@@ -281,7 +297,7 @@ export default function ConnectionModal() {
                   </div>
                 )}
               </For>
-              <Show when={subscriptions().length === 0}>
+              <Show when={subscriptions.length === 0}>
                 <div class="text-xs text-slate-500 py-1">
                   {connectionType() === "winccua"
                     ? "No filters. Add at least one name filter to browse tags."
