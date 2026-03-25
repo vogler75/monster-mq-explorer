@@ -32,7 +32,16 @@ function nextSubId(): string {
 }
 
 function tagNameToTopic(name: string, splitters: string[]): string {
+  // Strip trailing splitter characters (e.g. a trailing "." in WinCC OA tag names)
+  // before replacing them with "/" to avoid a trailing slash in the topic path.
   let result = name;
+  let trimmed = true;
+  while (trimmed && result.length > 0) {
+    trimmed = false;
+    for (const s of splitters) {
+      if (result.endsWith(s)) { result = result.slice(0, -s.length); trimmed = true; }
+    }
+  }
   for (const s of splitters) {
     result = result.split(s).join("/");
   }
@@ -202,9 +211,11 @@ async function connectToWinCCOA(config: ConnectionConfig) {
           sendDpQueryConnect(socket, `SELECT '_original.._value', '_original.._stime', '_original.._status' FROM '${pattern}'`);
         }
 
-        // Explicit tags: one dpQueryConnectSingle per chunk using the list syntax {Tag1.,Tag2.}
+        // Explicit tags: one dpQueryConnectSingle per chunk using the list syntax {Tag1.**,Tag2.**}
+        // Tags without a "." are bare DP names — append ".**" to subscribe to all elements.
+        // Tags that already contain a "." specify a particular element and are used as-is.
         for (const chunk of explicitChunks) {
-          const list = chunk.map((t) => (t.includes(".") ? t : `${t}.`)).join(",");
+          const list = chunk.map((t) => (t.includes(".") ? t : `${t}.**`)).join(",");
           sendDpQueryConnect(socket, `SELECT '_original.._value', '_original.._stime', '_original.._status' FROM '{${list}}'`);
         }
 
