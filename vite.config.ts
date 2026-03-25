@@ -3,6 +3,9 @@ import solidPlugin from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { handleApiRequest } from "./server/api";
+import { readFileSync } from "fs";
+
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8"));
 
 function apiPlugin(): Plugin {
   return {
@@ -52,6 +55,9 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ["mqtt"],
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
   build: {
     target: "esnext",

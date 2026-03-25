@@ -7,11 +7,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:pwa": "vite build",
-    "build:electron": "ELECTRON=1 vite build && electron-builder",
-    "build:electron:mac": "ELECTRON=1 vite build && electron-builder --mac",
-    "build:electron:win": "ELECTRON=1 vite build && electron-builder --win",
-    "electron:preview": "ELECTRON=1 vite build && electron .",
+    "build:pwa": "node scripts/set-version.cjs && vite build",
+    "build:electron": "node scripts/set-version.cjs && ELECTRON=1 vite build && electron-builder",
+    "build:electron:mac": "node scripts/set-version.cjs && ELECTRON=1 vite build && electron-builder --mac",
+    "build:electron:win": "node scripts/set-version.cjs && ELECTRON=1 vite build && electron-builder --win",
+    "electron:preview": "node scripts/set-version.cjs && ELECTRON=1 vite build && electron .",
     "preview": "vite preview",
     "test": "vitest"
   },
@@ -60,13 +60,24 @@
       "icon": "public/icons/icon-512.png",
       "category": "public.app-category.developer-tools",
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ]
     },
     "win": {
       "icon": "public/icons/icon-512.png",
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {

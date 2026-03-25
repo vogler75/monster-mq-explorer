@@ -1,5 +1,8 @@
 const { app, BrowserWindow, shell } = require("electron");
 const path = require("path");
+const pkg = require("../package.json");
+
+app.setVersion(pkg.version);
 
 // Keep a global reference so the window is not garbage-collected
 let mainWindow;
@@ -10,7 +13,7 @@ function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    title: "Monster MQTT Explorer",
+    title: `Monster MQTT Explorer v${pkg.version}`,
     icon: path.join(__dirname, "../dist/icons/icon-512.png"),
     backgroundColor: "#0f172a",
     webPreferences: {

@@ -76,6 +76,7 @@ export default function Toolbar(props: Props) {
 
       {/* Actions */}
       <div class="flex items-center gap-2 ml-auto">
+        <span class="text-xs text-slate-600 select-all" title="App version">v{__APP_VERSION__}</span>
         <Show when={connectionStatus() === "connected"}>
           <button
             class="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
