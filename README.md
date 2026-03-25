@@ -67,9 +67,25 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Build
 
+### Web / PWA
+
 ```bash
 npm run build
 npm run preview
+```
+
+Open [http://localhost:3000](http://localhost:3000) in Chrome or Edge. Click the install icon in the address bar to install as a Progressive Web App.
+
+### Electron (Desktop)
+
+```bash
+# Preview without packaging
+npm run electron:preview
+
+# Build distributable
+npm run build:electron:mac   # → release/*.dmg (arm64 + x64)
+npm run build:electron:win   # → release/*.exe (x64)
+npm run build:electron       # both platforms
 ```
 
 ## Tech Stack
