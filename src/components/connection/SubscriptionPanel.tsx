@@ -7,7 +7,8 @@ import TagBrowserModal from "./TagBrowserModal";
 export default function SubscriptionModal() {
   const { connections, activeConnectionId, addSubscription, removeSubscriptionAt, updateSubscription } =
     useConnections();
-  const { connectionStatus, subscribeLive, unsubscribeLive, setShowSubscriptionModal } = useUI();
+  const { getConnectionStatus, subscribeLive, unsubscribeLive, setShowSubscriptionModal } = useUI();
+  const connectionStatus = () => activeConnectionId() ? getConnectionStatus(activeConnectionId()!) : "disconnected";
 
   const activeConn = () => connections.find((c) => c.id === activeConnectionId());
   const subs = () => activeConn()?.subscriptions ?? [];

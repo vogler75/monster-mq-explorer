@@ -3,7 +3,7 @@
 //   connection_init / connection_ack handshake (token in connection_init payload)
 //   "subscribe" to start, "next" for incoming notifications, "complete" to stop
 
-declare const __ELECTRON__: boolean;
+declare const __ELECTRON__: boolean | undefined;
 import type { WorkerCommand, WorkerEvent, SerializedMessage } from "./mqtt.protocol";
 import type { ConnectionConfig } from "../types/mqtt";
 
@@ -100,7 +100,7 @@ async function graphqlPost(url: string, body: object, token?: string): Promise<u
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   let fetchUrl = url;
-  if (!__ELECTRON__) {
+  if (typeof __ELECTRON__ === "undefined" || !__ELECTRON__) {
     headers["X-Wincc-Target"] = url;
     fetchUrl = "/api/winccua-proxy";
   }

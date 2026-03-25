@@ -12,47 +12,36 @@ import DetailPane from "./components/layout/DetailPane";
 import ConnectionModal from "./components/connection/ConnectionModal";
 import SubscriptionModal from "./components/connection/SubscriptionPanel";
 
-// Create workers
-let worker: Worker | null = null;
-let winccuaWorker: Worker | null = null;
+// One worker per connection, keyed by connectionId
+const workers = new Map<string, Worker>();
 
-function getWorker(): Worker {
-  if (!worker) {
-    worker = new Worker(new URL("./workers/mqtt.worker.ts", import.meta.url), {
-      type: "module",
-    });
+function getOrCreateWorker(connectionId: string, type: "mqtt" | "winccua"): Worker {
+  let w = workers.get(connectionId);
+  if (!w) {
+    const url = type === "winccua"
+      ? new URL("./workers/winccua.worker.ts", import.meta.url)
+      : new URL("./workers/mqtt.worker.ts", import.meta.url);
+    w = new Worker(url, { type: "module" });
+    workers.set(connectionId, w);
   }
-  return worker;
-}
-
-function getWinCCUAWorker(): Worker {
-  if (!winccuaWorker) {
-    winccuaWorker = new Worker(
-      new URL("./workers/winccua.worker.ts", import.meta.url),
-      { type: "module" }
-    );
-  }
-  return winccuaWorker;
+  return w;
 }
 
 export default function App() {
   const { connections, activeConnectionId, setActiveConnectionId, getConnection } =
     useConnections();
-  const { processBatch, clearTree } = useTopicTree();
-  const { setConnectionStatus, showConnectionModal, showSubscriptionModal, connectionStatus, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
+  const { processBatch } = useTopicTree();
+  const { getConnectionStatus, setConnectionStatus, showConnectionModal, showSubscriptionModal, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
   const { addMessages } = useMessageLog();
 
-  // Resizable sidebar
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
 
   function startResize(e: MouseEvent) {
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = sidebarWidth();
-
     function onMove(e: MouseEvent) {
-      const newWidth = Math.max(200, Math.min(window.innerWidth * 0.8, startWidth + e.clientX - startX));
-      setSidebarWidth(newWidth);
+      setSidebarWidth(Math.max(200, Math.min(window.innerWidth * 0.8, startWidth + e.clientX - startX)));
     }
     function onUp() {
       document.removeEventListener("mousemove", onMove);
@@ -66,111 +55,89 @@ export default function App() {
     document.body.style.userSelect = "none";
   }
 
-  function setupWorkerListeners(w: Worker) {
+  function setupWorkerListeners(w: Worker, connectionId: string) {
     w.onmessage = (e: MessageEvent<WorkerEvent>) => {
       const event = e.data;
       switch (event.type) {
         case "connected":
-          setConnectionStatus("connected");
+          setConnectionStatus(connectionId, "connected");
           break;
         case "disconnected":
-          setConnectionStatus("disconnected");
+          setConnectionStatus(connectionId, "disconnected");
           break;
         case "error":
-          console.error("[MQTT]", event.message);
+          console.error(`[Worker:${connectionId}]`, event.message);
           break;
         case "messages": {
-          const newTopics = processBatch(event.batch);
-          addMessages(event.batch, selectedTopic());
+          const config = getConnection(connectionId);
+          const batch = config?.connectionType === "mqtt"
+            ? event.batch.map((m) => ({ ...m, topic: `${config.name}/${m.topic}` }))
+            : event.batch;
+          const newTopics = processBatch(batch);
+          addMessages(batch, selectedTopic());
           if (autoExpand() && newTopics.length > 0) {
             expandTopics(newTopics);
           }
           break;
         }
         case "subscribed":
-          console.log("[MQTT] Subscribed:", event.topic);
+          console.log(`[Worker:${connectionId}] Subscribed:`, event.topic);
           break;
       }
     };
   }
 
   function activeWorker(): Worker | null {
-    const config = activeConnectionId() ? getConnection(activeConnectionId()!) : null;
-    if (config?.connectionType === "winccua") return winccuaWorker;
-    return worker;
+    const id = activeConnectionId();
+    return id ? workers.get(id) ?? null : null;
   }
 
   function connect(connectionId: string) {
     const config = getConnection(connectionId);
     if (!config) return;
-
-    const w = config.connectionType === "winccua" ? getWinCCUAWorker() : getWorker();
-    setupWorkerListeners(w);
-
-    setConnectionStatus("connecting");
+    const w = getOrCreateWorker(connectionId, config.connectionType);
+    setupWorkerListeners(w, connectionId);
+    setConnectionStatus(connectionId, "connecting");
     setActiveConnectionId(connectionId);
-    clearTree();
-
     const plainConfig = JSON.parse(JSON.stringify(unwrap(config)));
-    const cmd: WorkerCommand = { type: "connect", config: plainConfig };
-    w.postMessage(cmd);
+    w.postMessage({ type: "connect", config: plainConfig } as WorkerCommand);
+  }
+
+  function disconnect() {
+    const id = activeConnectionId();
+    if (!id) return;
+    const w = workers.get(id);
+    if (w) w.postMessage({ type: "disconnect" } as WorkerCommand);
+    setConnectionStatus(id, "disconnected");
   }
 
   function publish(topic: string, payload: string, qos: 0 | 1 | 2, retain: boolean) {
     const w = activeWorker();
-    if (w) {
-      const cmd: WorkerCommand = { type: "publish", topic, payload, qos, retain };
-      w.postMessage(cmd);
-    }
+    if (w) w.postMessage({ type: "publish", topic, payload, qos, retain } as WorkerCommand);
   }
-
-  setPublishFn(publish);
 
   function subscribe(topic: string, qos: 0 | 1 | 2) {
     const w = activeWorker();
-    if (w) {
-      const cmd: WorkerCommand = { type: "subscribe", topic, qos };
-      w.postMessage(cmd);
-    }
+    if (w) w.postMessage({ type: "subscribe", topic, qos } as WorkerCommand);
   }
 
   function unsubscribe(topic: string) {
     const w = activeWorker();
-    if (w) {
-      const cmd: WorkerCommand = { type: "unsubscribe", topic };
-      w.postMessage(cmd);
-    }
+    if (w) w.postMessage({ type: "unsubscribe", topic } as WorkerCommand);
   }
 
+  setPublishFn(publish);
   setSubscribeFn(subscribe);
   setUnsubscribeFn(unsubscribe);
 
-  function disconnect() {
-    const w = activeWorker();
-    if (w) {
-      const cmd: WorkerCommand = { type: "disconnect" };
-      w.postMessage(cmd);
-    }
-    setConnectionStatus("disconnected");
-  }
-
   onCleanup(() => {
-    if (worker) {
-      worker.terminate();
-      worker = null;
-    }
-    if (winccuaWorker) {
-      winccuaWorker.terminate();
-      winccuaWorker = null;
-    }
+    for (const w of workers.values()) w.terminate();
+    workers.clear();
   });
 
   return (
     <div class="h-full flex flex-col bg-slate-900">
-      <Toolbar
-        onConnect={connect}
-        onDisconnect={disconnect}
-      />
+      <Toolbar onConnect={connect} onDisconnect={disconnect} />
       <div class="flex flex-1 overflow-hidden">
         <div style={{ width: `${sidebarWidth()}px`, "min-width": "200px", "max-width": "80vw" }} class="shrink-0">
           <Sidebar />

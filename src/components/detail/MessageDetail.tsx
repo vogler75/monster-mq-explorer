@@ -10,6 +10,7 @@ import {
 } from "../../lib/format";
 import { collectRetainedTopics } from "../../lib/topic-tree";
 import { useUI } from "../../stores/ui";
+import { useConnections } from "../../stores/connections";
 import JsonViewer from "./JsonViewer";
 
 type Tab = "formatted" | "raw" | "hex" | "pic";
@@ -31,7 +32,9 @@ interface Props {
 }
 
 export default function MessageDetail(props: Props) {
-  const { publish, connectionStatus } = useUI();
+  const { publish, getConnectionStatus } = useUI();
+  const { activeConnectionId } = useConnections();
+  const connectionStatus = () => activeConnectionId() ? getConnectionStatus(activeConnectionId()!) : "disconnected";
   const [activeTab, setActiveTab] = createSignal<Tab>("formatted");
 
   function clearRetained() {

@@ -7,22 +7,18 @@ let publishFn: PublishFn | null = null;
 let subscribeFn: SubscribeFn | null = null;
 let unsubscribeFn: UnsubscribeFn | null = null;
 
+export type ConnectionStatus = "disconnected" | "connecting" | "connected";
+
 const [selectedTopic, setSelectedTopic] = createSignal<string | null>(null);
-const [expandedNodes, setExpandedNodes] = createSignal<Set<string>>(
-  new Set()
-);
-const [connectionStatus, setConnectionStatus] = createSignal<
-  "disconnected" | "connecting" | "connected"
->("disconnected");
+const [expandedNodes, setExpandedNodes] = createSignal<Set<string>>(new Set());
+const [connectionStatuses, setConnectionStatuses_] = createSignal<Map<string, ConnectionStatus>>(new Map());
 const [sortTree, setSortTree] = createSignal(false);
 const [autoExpand, setAutoExpand] = createSignal(false);
 const [showRetainedOnly, setShowRetainedOnly] = createSignal(false);
 const [flashEnabled, setFlashEnabled] = createSignal(true);
 const [showConnectionModal, setShowConnectionModal] = createSignal(false);
 const [showSubscriptionModal, setShowSubscriptionModal] = createSignal(false);
-const [editingConnectionId, setEditingConnectionId] = createSignal<
-  string | null
->(null);
+const [editingConnectionId, setEditingConnectionId] = createSignal<string | null>(null);
 
 export function useUI() {
   return {
@@ -54,8 +50,15 @@ export function useUI() {
         return next;
       });
     },
-    connectionStatus,
-    setConnectionStatus,
+
+    connectionStatuses,
+    getConnectionStatus(id: string): ConnectionStatus {
+      return connectionStatuses().get(id) ?? "disconnected";
+    },
+    setConnectionStatus(id: string, status: ConnectionStatus) {
+      setConnectionStatuses_((prev) => new Map(prev).set(id, status));
+    },
+
     showConnectionModal,
     setShowConnectionModal,
     showSubscriptionModal,
@@ -66,11 +69,7 @@ export function useUI() {
     toggleExpanded(topic: string) {
       setExpandedNodes((prev) => {
         const next = new Set(prev);
-        if (next.has(topic)) {
-          next.delete(topic);
-        } else {
-          next.add(topic);
-        }
+        if (next.has(topic)) next.delete(topic); else next.add(topic);
         return next;
       });
     },

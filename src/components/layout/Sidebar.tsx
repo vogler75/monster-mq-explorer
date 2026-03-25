@@ -3,12 +3,13 @@ import { useUI } from "../../stores/ui";
 import TopicTree from "../tree/TopicTree";
 
 export default function Sidebar() {
-  const { connectionStatus } = useUI();
+  const { connectionStatuses } = useUI();
+  const anyConnected = () => [...connectionStatuses().values()].some((s) => s !== "disconnected");
 
   return (
     <div class="h-full flex flex-col border-r border-slate-700 bg-slate-850 overflow-hidden">
       <Show
-        when={connectionStatus() !== "disconnected"}
+        when={anyConnected()}
         fallback={
           <div class="flex-1 flex items-center justify-center text-sm text-slate-500 p-4 text-center">
             Select a connection and click Connect to start exploring topics

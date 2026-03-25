@@ -3,8 +3,8 @@ import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
 
 interface Props {
-  onConnect: (id: string) => void;
   onClose: () => void;
+  onConnect: (id: string) => void;
 }
 
 export default function ConnectionPicker(props: Props) {
@@ -18,7 +18,7 @@ export default function ConnectionPicker(props: Props) {
     connectionImportError,
     clearConnectionImportError,
   } = useConnections();
-  const { connectionStatus, setShowConnectionModal, setEditingConnectionId } = useUI();
+  const { getConnectionStatus, setShowConnectionModal, setEditingConnectionId } = useUI();
   const [busy, setBusy] = createSignal(false);
 
   async function handleImport(e: Event) {
@@ -85,16 +85,18 @@ export default function ConnectionPicker(props: Props) {
               }}
               onClick={() => {
                 setActiveConnectionId(conn.id);
-                props.onConnect(conn.id);
                 props.onClose();
+                if (getConnectionStatus(conn.id) === "disconnected") {
+                  props.onConnect(conn.id);
+                }
               }}
             >
               <div
                 class="w-1.5 h-1.5 rounded-full shrink-0"
                 classList={{
-                  "bg-green-500": activeConnectionId() === conn.id && connectionStatus() === "connected",
-                  "bg-yellow-500": activeConnectionId() === conn.id && connectionStatus() === "connecting",
-                  "bg-slate-600": activeConnectionId() !== conn.id || connectionStatus() === "disconnected",
+                  "bg-green-500": getConnectionStatus(conn.id) === "connected",
+                  "bg-yellow-500 animate-pulse": getConnectionStatus(conn.id) === "connecting",
+                  "bg-slate-600": getConnectionStatus(conn.id) === "disconnected",
                 }}
               />
               <div class="flex-1 min-w-0">

@@ -1,4 +1,4 @@
-declare const __ELECTRON__: boolean;
+declare const __ELECTRON__: boolean | undefined;
 
 export interface BrowseConfig {
   host: string;
@@ -14,7 +14,7 @@ async function graphqlPost(url: string, body: object, token?: string): Promise<u
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   let fetchUrl = url;
-  if (!__ELECTRON__) {
+  if (typeof __ELECTRON__ === "undefined" || !__ELECTRON__) {
     headers["X-Wincc-Target"] = url;
     fetchUrl = "/api/winccua-proxy";
   }

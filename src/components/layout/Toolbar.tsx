@@ -12,11 +12,12 @@ interface Props {
 export default function Toolbar(props: Props) {
   const { connections, activeConnectionId } = useConnections();
   const { messagesPerSecond } = useTopicTree();
-  const { connectionStatus, setShowSubscriptionModal, flashEnabled, toggleFlashEnabled } = useUI();
+  const { getConnectionStatus, setShowSubscriptionModal, flashEnabled, toggleFlashEnabled } = useUI();
 
   const [pickerOpen, setPickerOpen] = createSignal(false);
 
   const activeConn = () => connections.find((c) => c.id === activeConnectionId());
+  const activeStatus = () => activeConnectionId() ? getConnectionStatus(activeConnectionId()!) : "disconnected";
 
   return (
     <div class="flex items-center gap-3 px-4 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
@@ -29,9 +30,9 @@ export default function Toolbar(props: Props) {
           <div
             class="w-2.5 h-2.5 rounded-full shrink-0"
             classList={{
-              "bg-green-500": connectionStatus() === "connected",
-              "bg-yellow-500 animate-pulse": connectionStatus() === "connecting",
-              "bg-slate-500": connectionStatus() === "disconnected",
+              "bg-green-500": activeStatus() === "connected",
+              "bg-yellow-500 animate-pulse": activeStatus() === "connecting",
+              "bg-slate-500": activeStatus() === "disconnected",
             }}
           />
           <span class="text-sm font-medium text-slate-200 truncate max-w-48">
@@ -47,15 +48,12 @@ export default function Toolbar(props: Props) {
         </button>
 
         <Show when={pickerOpen()}>
-          <ConnectionPicker
-            onConnect={props.onConnect}
-            onClose={() => setPickerOpen(false)}
-          />
+          <ConnectionPicker onClose={() => setPickerOpen(false)} onConnect={props.onConnect} />
         </Show>
       </div>
 
       {/* Stats */}
-      <Show when={connectionStatus() === "connected"}>
+      <Show when={activeStatus() === "connected"}>
         <div class="flex items-center gap-3 text-xs text-slate-400">
           <span>{messagesPerSecond()} msg/s</span>
           <button
@@ -77,7 +75,7 @@ export default function Toolbar(props: Props) {
       {/* Actions */}
       <div class="flex items-center gap-2 ml-auto">
         <span class="text-xs text-slate-600 select-all" title="App version">v{__APP_VERSION__}</span>
-        <Show when={connectionStatus() === "connected"}>
+        <Show when={activeStatus() === "connected"}>
           <button
             class="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
             onClick={() => setShowSubscriptionModal(true)}
@@ -91,7 +89,15 @@ export default function Toolbar(props: Props) {
             Disconnect
           </button>
         </Show>
-        <Show when={connectionStatus() === "disconnected" && activeConnectionId()}>
+        <Show when={activeStatus() === "connecting"}>
+          <button
+            class="px-3 py-1 text-xs bg-red-600/80 hover:bg-red-500 rounded text-white transition-colors"
+            onClick={props.onDisconnect}
+          >
+            Cancel
+          </button>
+        </Show>
+        <Show when={activeStatus() === "disconnected" && activeConnectionId()}>
           <button
             class="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded text-white transition-colors"
             onClick={() => props.onConnect(activeConnectionId()!)}
