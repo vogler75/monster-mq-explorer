@@ -3,9 +3,13 @@
 //   connection_init / connection_ack handshake (token in connection_init payload)
 //   "subscribe" to start, "next" for incoming notifications, "complete" to stop
 //
-// Subscriptions:
-//   Wildcard filters → dpQueryConnectSingle(query: "SELECT '.value' FROM 'pattern'", answer: true)
-//   Explicit tag lists → dpConnect(dpeNames: [...], answer: true) in chunks of CHUNK_SIZE
+// All subscriptions use dpQueryConnectSingle with a SELECT query:
+//   Wildcard filters:  FROM 'System1:*'
+//   Explicit tag list: FROM '{Tag1.,Tag2.}'  (batched in chunks of CHUNK_SIZE)
+//
+// Each result row is: [dpeName, value, stime, status]
+// where dpeName is the full DPE name including attribute (e.g. "System1:Tag._original.._value").
+// We strip the "._original.." suffix to get the clean DP element name for the topic.
 
 declare const __ELECTRON__: boolean | undefined;
 import type { WorkerCommand, WorkerEvent, SerializedMessage } from "./mqtt.protocol";
@@ -20,9 +24,6 @@ let pendingMessages: SerializedMessage[] = [];
 let flushInterval: ReturnType<typeof setInterval> | null = null;
 const encoder = new TextEncoder();
 
-// Track subscription type so we can parse "next" events correctly
-type SubKind = "dpQueryConnectSingle" | "dpConnect";
-const subKinds = new Map<string, SubKind>();
 let subIdCounter = 0;
 
 function nextSubId(): string {
@@ -44,8 +45,8 @@ function startFlushing() {
     if (pendingMessages.length === 0) return;
     const batch = pendingMessages;
     pendingMessages = [];
-    const transferables = batch.map((m) => m.payload.buffer as ArrayBuffer);
-    self.postMessage({ type: "messages", batch } as WorkerEvent, transferables);
+    const transferables = batch.map((m) => m.payload.buffer);
+    self.postMessage({ type: "messages", batch } as WorkerEvent, { transfer: transferables });
   }, 16);
 }
 
@@ -69,9 +70,8 @@ function wsSend(socket: WebSocket, msg: object) {
   socket.send(JSON.stringify(msg));
 }
 
-function sendDpQueryConnectAll(socket: WebSocket, query: string): string {
+function sendDpQueryConnect(socket: WebSocket, query: string): string {
   const id = nextSubId();
-  subKinds.set(id, "dpQueryConnectSingle");
   activeSubIds.push(id);
   console.log(`[WinCC OA] dpQueryConnectSingle ${id} query: ${query}`);
   wsSend(socket, {
@@ -85,40 +85,6 @@ function sendDpQueryConnectAll(socket: WebSocket, query: string): string {
     },
   });
   return id;
-}
-
-function sendDpConnect(socket: WebSocket, dpeNames: string[]): string {
-  const id = nextSubId();
-  subKinds.set(id, "dpConnect");
-  activeSubIds.push(id);
-  console.log(`[WinCC OA] dpConnect ${id} (${dpeNames.length} tags)`);
-  wsSend(socket, {
-    type: "subscribe",
-    id,
-    payload: {
-      query: `subscription($dpeNames: [String!]!, $answer: Boolean) {
-  dpConnect(dpeNames: $dpeNames, answer: $answer) { dpeNames values type error }
-}`,
-      variables: { dpeNames, answer: true },
-    },
-  });
-  return id;
-}
-
-function emitMessage(name: string, value: unknown, stime?: unknown, status?: unknown) {
-  // Strip trailing "." added for root-element dpConnect subscriptions (e.g. "System1:Tag." → "System1:Tag")
-  const cleanName = name.endsWith(".") ? name.slice(0, -1) : name;
-  const obj: Record<string, unknown> = { name: cleanName, value: value ?? null };
-  if (stime !== undefined && stime !== null) obj.stime = stime;
-  if (status !== undefined && status !== null) obj.status = status;
-  const payload = encoder.encode(JSON.stringify(obj));
-  pendingMessages.push({
-    topic: tagNameToTopic(cleanName, activeTagPathSplitters),
-    payload,
-    qos: 0,
-    retain: false,
-    timestamp: Date.now(),
-  });
 }
 
 async function graphqlPost(url: string, body: object, token?: string): Promise<unknown> {
@@ -172,17 +138,17 @@ async function connectToWinCCOA(config: ConnectionConfig) {
     console.log("[WinCC OA] Login OK, token obtained");
   }
 
-  // Step 2 — Resolve wildcard filter subscriptions to explicit tag lists via dpNames
-  const filterSubs = config.subscriptions.filter((s) => !s.tags || s.tags.length === 0);
-  const explicitTagSubs = config.subscriptions.filter((s) => s.tags && s.tags.length > 0);
-
-  // Collect unique filter patterns from filter subscriptions
-  const filterPatterns = filterSubs
+  // Step 2 — Collect all subscription patterns.
+  // Wildcard filter subs go directly as FROM patterns.
+  // Explicit tag subs are resolved to DP names via dpNames HTTP query first.
+  const filterPatterns = config.subscriptions
+    .filter((s) => !s.tags || s.tags.length === 0)
     .map((s) => s.topic.trim())
     .filter((t) => t.length > 0);
 
-  // For explicit tag subs, flatten all tags
-  const explicitTags = explicitTagSubs.flatMap((s) => s.tags!);
+  const explicitTags = config.subscriptions
+    .filter((s) => s.tags && s.tags.length > 0)
+    .flatMap((s) => s.tags!);
 
   console.log(`[WinCC OA] Filter patterns: ${filterPatterns.length}, explicit tags: ${explicitTags.length}`);
 
@@ -192,7 +158,16 @@ async function connectToWinCCOA(config: ConnectionConfig) {
     return;
   }
 
-  // Step 3 — Open WebSocket
+  // Build chunks of explicit tags for batched queries, same as WinCC UA.
+  // Each tag gets a trailing "." so WinCC OA treats it as a root element reference.
+  // The FROM list syntax is: '{Tag1.,Tag2.,Tag3.}'
+  const explicitChunks: string[][] = [];
+  for (let i = 0; i < explicitTags.length; i += CHUNK_SIZE) {
+    explicitChunks.push(explicitTags.slice(i, i + CHUNK_SIZE));
+  }
+  console.log(`[WinCC OA] Subscribing with ${filterPatterns.length} filter pattern(s) + ${explicitChunks.length} explicit chunk(s) of max ${CHUNK_SIZE} tags`);
+
+  // Step 3 — Open WebSocket and subscribe
   const ws = wsUrl(config);
   console.log("[WinCC OA] WebSocket URL:", ws);
 
@@ -200,7 +175,6 @@ async function connectToWinCCOA(config: ConnectionConfig) {
   activeWs = socket;
   subIdCounter = 0;
   activeSubIds = [];
-  subKinds.clear();
 
   socket.onopen = () => {
     console.log("[WinCC OA] WS open — sending connection_init");
@@ -219,28 +193,19 @@ async function connectToWinCCOA(config: ConnectionConfig) {
       return;
     }
 
-
     switch (msg.type) {
       case "connection_ack":
         console.log("[WinCC OA] connection_ack — sending subscriptions");
 
-        // Wildcard filter subscriptions → one dpQueryConnectSingle per pattern
+        // One dpQueryConnectSingle per wildcard filter pattern
         for (const pattern of filterPatterns) {
-          sendDpQueryConnectAll(socket, `SELECT '_original.._value', '_original.._stime', '_original.._status' FROM '${pattern}'`);
+          sendDpQueryConnect(socket, `SELECT '_original.._value', '_original.._stime', '_original.._status' FROM '${pattern}'`);
         }
 
-        // Explicit tag subscriptions → dpConnect with 3 attributes per tag
-        // Tags without a "." have no element specified — add "." before the attribute separator
-        const dpeNames = explicitTags.flatMap((t) => {
-          const base = t.includes(".") ? t : `${t}.`;
-          return [
-            `${base}:_online.._value`,
-            `${base}:_online.._stime`,
-            `${base}:_online.._status`,
-          ];
-        });
-        for (let i = 0; i < dpeNames.length; i += CHUNK_SIZE) {
-          sendDpConnect(socket, dpeNames.slice(i, i + CHUNK_SIZE));
+        // Explicit tags: one dpQueryConnectSingle per chunk using the list syntax {Tag1.,Tag2.}
+        for (const chunk of explicitChunks) {
+          const list = chunk.map((t) => (t.includes(".") ? t : `${t}.`)).join(",");
+          sendDpQueryConnect(socket, `SELECT '_original.._value', '_original.._stime', '_original.._status' FROM '{${list}}'`);
         }
 
         self.postMessage({ type: "connected" } as WorkerEvent);
@@ -248,53 +213,41 @@ async function connectToWinCCOA(config: ConnectionConfig) {
         break;
 
       case "next": {
-        const kind = subKinds.get(msg.id ?? "");
+        type DpQueryUpdate = { values?: unknown[][]; type?: string; error?: unknown };
+        const update = (msg.payload as { data?: { dpQueryConnectSingle?: DpQueryUpdate } })?.data?.dpQueryConnectSingle;
+        if (!update) return;
+        if (update.error) {
+          console.error(`[WinCC OA] dpQueryConnectSingle error (${msg.id}):`, JSON.stringify(update.error));
+          return;
+        }
+        const rows = update.values ?? [];
+        for (const row of rows) {
+          if (!Array.isArray(row) || row.length < 2) continue;
+          if (row[0] === "" || row[0] === null) continue; // skip header row
 
-        if (kind === "dpQueryConnectSingle") {
-          type DpQueryUpdate = { values?: unknown[][]; type?: string; error?: unknown };
-          const update = (msg.payload as { data?: { dpQueryConnectSingle?: DpQueryUpdate } })?.data?.dpQueryConnectSingle;
-          if (!update) return;
-          if (update.error) {
-            console.error(`[WinCC OA] dpQueryConnectSingle error (${msg.id}):`, JSON.stringify(update.error));
-            return;
-          }
-          const rows = update.values ?? [];
-          for (const row of rows) {
-            if (!Array.isArray(row) || row.length < 2) continue;
-            if (row[0] === "" || row[0] === null) continue; // header row
-            const dpName = String(row[0]);
-            if (config.filterInternalTags && dpName.split(":").pop()!.startsWith("_")) continue;
-            const value = row[1] ?? null;
-            const stime = row[2] ?? null;
-            const status = row[3] ?? null;
-            emitMessage(dpName, value, stime, status);
-          }
-        } else if (kind === "dpConnect") {
-          type DpConnectUpdate = { dpeNames?: string[]; values?: unknown[]; type?: string; error?: unknown };
-          const update = (msg.payload as { data?: { dpConnect?: DpConnectUpdate } })?.data?.dpConnect;
-          if (!update) return;
-          if (update.error) {
-            console.error(`[WinCC OA] dpConnect error (${msg.id}):`, JSON.stringify(update.error));
-            return;
-          }
-          const names = update.dpeNames ?? [];
-          const values = update.values ?? [];
-          // Group by base tag name (strip ":_online.._value" etc. — everything from last ":")
-          const tagData = new Map<string, { value?: unknown; stime?: unknown; status?: unknown }>();
-          for (let i = 0; i < names.length; i++) {
-            const lastColon = names[i].lastIndexOf(":");
-            const baseName = lastColon >= 0 ? names[i].slice(0, lastColon) : names[i];
-            const attr = lastColon >= 0 ? names[i].slice(lastColon + 1) : "";
-            if (!tagData.has(baseName)) tagData.set(baseName, {});
-            const d = tagData.get(baseName)!;
-            if (attr === "_online.._value") d.value = values[i];
-            else if (attr === "_online.._stime") d.stime = values[i];
-            else if (attr === "_online.._status") d.status = values[i];
-          }
-          for (const [name, d] of tagData) {
-            if (config.filterInternalTags && name.split(":").pop()!.startsWith("_")) continue;
-            emitMessage(name, d.value ?? null, d.stime, d.status);
-          }
+          // row[0] is the full DPE name including the attribute suffix, e.g.:
+          //   "System1:ExampleDP.bt.x1._original.._value"
+          // Strip everything from "._original.." onward to get the clean element name.
+          const fullDpe = String(row[0]);
+          const attrIdx = fullDpe.indexOf("._original..");
+          const name = attrIdx >= 0 ? fullDpe.slice(0, attrIdx) : fullDpe;
+
+          if (config.filterInternalTags && name.split(":").pop()!.startsWith("_")) continue;
+
+          const value = row[1] ?? null;
+          const stime = row[2] ?? null;
+          const status = row[3] ?? null;
+
+          const obj: Record<string, unknown> = { name, value };
+          if (stime !== null) obj.stime = stime;
+          if (status !== null) obj.status = status;
+          pendingMessages.push({
+            topic: tagNameToTopic(name, activeTagPathSplitters),
+            payload: encoder.encode(JSON.stringify(obj)),
+            qos: 0,
+            retain: false,
+            timestamp: Date.now(),
+          });
         }
         break;
       }
@@ -342,7 +295,6 @@ function disconnectFromWinCCOA() {
     activeWs = null;
   }
   activeSubIds = [];
-  subKinds.clear();
   stopFlushing();
   pendingMessages = [];
 }

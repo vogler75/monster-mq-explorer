@@ -10,10 +10,11 @@ export interface ConnectionConfig {
   password: string;
   clientId: string;
   subscriptions: Subscription[];
-  /** WinCC UA: comma-separated list of substrings that are replaced with '/' when
-   *  converting a tag name to a topic path. E.g. "::" or "::, ." */
+  /** WinCC UA/OA: string whose individual characters are each treated as a separator
+   *  and replaced with '/' when converting a tag name to a topic path.
+   *  E.g. "." replaces every '.' with '/'. WinCC OA always also replaces ':'; WinCC UA always also replaces '::'. */
   tagPathSplit: string;
-  /** WinCC UA: filter out tags whose name contains "@" (internal/system tags) */
+  /** WinCC UA/OA: filter out internal tags (WinCC UA: starting with '@', WinCC OA: starting with '_') */
   filterInternalTags: boolean;
 }
 

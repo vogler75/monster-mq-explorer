@@ -261,7 +261,7 @@ export default function ConnectionModal() {
           {/* Tag path splitting — WinCC UA / OA only */}
           <Show when={connectionType() === "winccua" || connectionType() === "winccoa"}>
             <div>
-              <label class={labelClass}>Replace with / (comma-separated)</label>
+              <label class={labelClass}>Additional chars to replace with /</label>
               <input
                 class={inputClass}
                 placeholder="e.g. ."
