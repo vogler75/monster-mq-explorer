@@ -9,15 +9,29 @@ const [pinnedTopics, setPinnedTopics] = createSignal<Set<string>>(new Set());
 /** Named saved watchlists. */
 const [watchlists, setWatchlists] = createStore<Watchlist[]>([]);
 
+/**
+ * Guard that prevents the auto-save effect from firing before the initial
+ * async load has resolved.  Without this, `createEffect` runs immediately
+ * with an empty Set and overwrites whatever was previously persisted.
+ */
+let persistenceReady = false;
+
 // Bootstrap persisted data on startup.
-loadWatchlists().then((saved: Watchlist[]) => setWatchlists(saved));
-loadPinnedTopics().then((topics) => {
-  if (topics.length > 0) setPinnedTopics(new Set(topics));
+Promise.all([
+  loadWatchlists(),
+  loadPinnedTopics(),
+]).then(([savedLists, savedPinned]) => {
+  setWatchlists(savedLists);
+  if (savedPinned.length > 0) setPinnedTopics(new Set(savedPinned));
+  persistenceReady = true;
 });
 
-// Persist pinned topics whenever they change.
+// Persist pinned topics whenever they change — but only after the initial
+// load has completed so we never overwrite data with an empty set.
 createEffect(() => {
-  savePinnedTopics([...pinnedTopics()]);
+  const topics = pinnedTopics();
+  if (!persistenceReady) return;
+  savePinnedTopics([...topics]);
 });
 
 export function useWatchlist() {

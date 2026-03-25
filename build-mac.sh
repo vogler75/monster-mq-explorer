@@ -45,7 +45,11 @@ if $DO_UPLOAD; then
   VERSION=$(node -p "require('./package.json').version")
   TAG="v${VERSION}"
 
-  mapfile -t DMGS < <(ls release/*.dmg 2>/dev/null | grep -v blockmap)
+  DMGS=()
+  for f in release/*.dmg; do
+    [[ "$f" == *.blockmap ]] && continue
+    [ -f "$f" ] && DMGS+=("$f")
+  done
   if [ ${#DMGS[@]} -eq 0 ]; then
     echo "ERROR: No .dmg found in release/. Run with -b first."
     exit 1
