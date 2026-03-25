@@ -4,3 +4,4 @@ data
 release
 *.local
 .DS_Store
+.claude

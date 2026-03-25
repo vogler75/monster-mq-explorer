@@ -8,10 +8,10 @@
     "dev": "vite",
     "build": "vite build",
     "build:pwa": "node scripts/set-version.cjs && vite build",
-    "build:electron": "node scripts/set-version.cjs && ELECTRON=1 vite build && electron-builder",
-    "build:electron:mac": "node scripts/set-version.cjs && ELECTRON=1 vite build && electron-builder --mac",
-    "build:electron:win": "node scripts/set-version.cjs && ELECTRON=1 vite build && electron-builder --win",
-    "electron:preview": "node scripts/set-version.cjs && ELECTRON=1 vite build && electron .",
+    "build:electron": "node scripts/set-version.cjs && cross-env ELECTRON=1 vite build && electron-builder",
+    "build:electron:mac": "node scripts/set-version.cjs && cross-env ELECTRON=1 vite build && electron-builder --mac",
+    "build:electron:win": "node scripts/set-version.cjs && cross-env ELECTRON=1 vite build && electron-builder --win",
+    "electron:preview": "node scripts/set-version.cjs && cross-env ELECTRON=1 vite build && electron .",
     "preview": "vite preview",
     "test": "vitest"
   },
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
+    "cross-env": "^10.1.0",
     "electron": "^41.0.4",
     "electron-builder": "^26.8.1",
     "tailwindcss": "^4.2.2",

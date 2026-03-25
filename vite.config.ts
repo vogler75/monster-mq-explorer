@@ -27,7 +27,7 @@ export default defineConfig({
     apiPlugin(),
     solidPlugin(),
     tailwindcss(),
-    VitePWA({
+    ...isElectron ? [] : [VitePWA({
       registerType: "autoUpdate",
       manifest: {
         name: "Monster MQTT Explorer",
@@ -45,7 +45,7 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         navigateFallback: "/index.html",
       },
-    }),
+    })],
   ],
   server: {
     port: 3000,
