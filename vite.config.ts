@@ -16,7 +16,10 @@ function apiPlugin(): Plugin {
   };
 }
 
+const isElectron = process.env.ELECTRON === "1";
+
 export default defineConfig({
+  base: isElectron ? "./" : "/",
   plugins: [
     apiPlugin(),
     solidPlugin(),
