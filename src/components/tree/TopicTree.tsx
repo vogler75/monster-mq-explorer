@@ -2,7 +2,7 @@ import { createMemo, createSignal, For } from "solid-js";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { useTopicTree } from "../../stores/topics";
 import { useUI } from "../../stores/ui";
-import { flattenVisibleNodes, collectAllNodePaths, hasRetainedInTree } from "../../lib/topic-tree";
+import { flattenVisibleNodes, collectAllNodePaths, hasRetainedInTree, getNodeByTopic } from "../../lib/topic-tree";
 import TopicRow from "./TopicRow";
 
 export default function TopicTree() {
@@ -73,8 +73,19 @@ export default function TopicTree() {
         </button>
         <button
           class="p-1 rounded shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
-          onClick={() => expandAll(collectAllNodePaths(topicTree))}
-          title="Expand all"
+          onClick={() => {
+            const sel = selectedTopic();
+            if (sel) {
+              const node = getNodeByTopic(topicTree, sel);
+              if (node) {
+                const paths = collectAllNodePaths(node);
+                expandAll([...expandedNodes(), ...paths, sel]);
+              }
+            } else {
+              expandAll(collectAllNodePaths(topicTree));
+            }
+          }}
+          title={selectedTopic() ? "Expand selected node" : "Expand all"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 4h10M2 7h7M2 10h4" />
@@ -85,7 +96,7 @@ export default function TopicTree() {
           class="p-1 rounded shrink-0 transition-colors"
           classList={{
             "text-slate-500 hover:text-slate-300 cursor-not-allowed opacity-50": !selectedTopic(),
-            "text-red-500 hover:text-red-400": selectedTopic(),
+            "text-slate-400 hover:text-slate-200": selectedTopic(),
           }}
           disabled={!selectedTopic()}
           onClick={() => {
