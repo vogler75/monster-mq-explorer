@@ -157,8 +157,8 @@ async function connectToWinCCUA(config: ConnectionConfig) {
   let browsedTags: string[] = [];
   if (nameFilters.length > 0) {
     const browseBody = {
-      query: `query Browse($nameFilters: [String!]!) { browse(nameFilters: $nameFilters) { name } }`,
-      variables: { nameFilters },
+      query: `query Browse($nameFilters: [String], $objectTypeFilters: [ObjectTypesEnum]) { browse(nameFilters: $nameFilters, objectTypeFilters: $objectTypeFilters) { name } }`,
+      variables: { nameFilters, objectTypeFilters: ["TAG"] },
     };
     console.log("[WinCC UA] Browse request →", http, browseBody);
     try {

@@ -88,7 +88,7 @@ export function createDefaultWinCCOAConnection(): ConnectionConfig {
     password: "",
     clientId: "",
     subscriptions: [{ topic: "*", qos: 0 }],
-    tagPathSplit: "",
+    tagPathSplit: "_,.",
     filterInternalTags: false,
   };
 }
@@ -106,7 +106,7 @@ export function createDefaultWinCCUAConnection(): ConnectionConfig {
     password: "",
     clientId: "",
     subscriptions: [{ topic: "*", qos: 0 }],
-    tagPathSplit: "",
+    tagPathSplit: "_,.",
     filterInternalTags: true,
   };
 }

@@ -69,21 +69,24 @@ export default function TagBrowserModal(props: Props) {
           <h2 class="text-sm font-semibold text-slate-200">Browse Tags</h2>
         </div>
 
-        <div class="px-4 py-3 border-b border-slate-700 flex gap-2">
-          <input
-            class={inputBase + " flex-1"}
-            value={filter()}
-            onInput={(e) => setFilter(e.currentTarget.value)}
-            onKeyDown={(e) => e.key === "Enter" && browse()}
-            placeholder="Name filter, e.g. System1::* or *"
-          />
-          <button
-            class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50"
-            onClick={browse}
-            disabled={loading()}
-          >
-            {loading() ? "Browsing…" : "Browse"}
-          </button>
+        <div class="px-4 py-3 border-b border-slate-700">
+          <div class="flex gap-2 mb-2">
+            <input
+              class={inputBase + " flex-1"}
+              value={filter()}
+              onInput={(e) => setFilter(e.currentTarget.value)}
+              onKeyDown={(e) => e.key === "Enter" && browse()}
+              placeholder="Name filter, e.g. System1::* or *"
+            />
+            <button
+              class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50"
+              onClick={browse}
+              disabled={loading()}
+            >
+              {loading() ? "Browsing…" : "Browse"}
+            </button>
+          </div>
+          <p class="text-xs text-slate-400">Tip: Use <code class="bg-slate-900 px-1 rounded">*.**</code> to list structured tags</p>
         </div>
 
         <Show when={error()}>

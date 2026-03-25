@@ -44,8 +44,8 @@ export async function loginAndBrowse(config: BrowseConfig, nameFilters: string[]
   }
 
   const result = await graphqlPost(url, {
-    query: `query Browse($nameFilters: [String!]!) { browse(nameFilters: $nameFilters) { name } }`,
-    variables: { nameFilters },
+    query: `query Browse($nameFilters: [String], $objectTypeFilters: [ObjectTypesEnum]) { browse(nameFilters: $nameFilters, objectTypeFilters: $objectTypeFilters) { name } }`,
+    variables: { nameFilters, objectTypeFilters: ["TAG"] },
   }, token) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
 
   if (result.errors) throw new Error(`Browse failed: ${JSON.stringify(result.errors)}`);
