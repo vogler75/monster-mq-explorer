@@ -82,6 +82,20 @@ export function useConnections() {
       resetImportError();
     },
 
+    removeTagFromSubscription(id: string, subIndex: number, tag: string) {
+      const nextConnections = connections.map((conn) => {
+        if (conn.id !== id) return conn;
+        const subs = conn.subscriptions.map((sub, i) => {
+          if (i !== subIndex || !sub.tags) return sub;
+          return { ...sub, tags: sub.tags.filter((t) => t !== tag) };
+        }).filter((sub, i) => i !== subIndex || !sub.tags || sub.tags.length > 0);
+        return { ...conn, subscriptions: subs };
+      });
+      setConnections(nextConnections);
+      void persistConnections(nextConnections);
+      resetImportError();
+    },
+
     removeSubscriptionAt(id: string, index: number) {
       const nextConnections = connections.map((conn) =>
         conn.id === id

@@ -15,7 +15,7 @@ const CHUNK_SIZE = 255;
 
 let activeWs: WebSocket | null = null;
 let activeSubIds: string[] = [];
-let activeTagPathSplitters: string[] = [":", "."];
+let activeTagPathSplitters: string[] = [":"];
 let pendingMessages: SerializedMessage[] = [];
 let flushInterval: ReturnType<typeof setInterval> | null = null;
 const encoder = new TextEncoder();
@@ -106,12 +106,14 @@ function sendDpConnect(socket: WebSocket, dpeNames: string[]): string {
 }
 
 function emitMessage(name: string, value: unknown, stime?: unknown, status?: unknown) {
-  const obj: Record<string, unknown> = { name, value: value ?? null };
+  // Strip trailing "." added for root-element dpConnect subscriptions (e.g. "System1:Tag." → "System1:Tag")
+  const cleanName = name.endsWith(".") ? name.slice(0, -1) : name;
+  const obj: Record<string, unknown> = { name: cleanName, value: value ?? null };
   if (stime !== undefined && stime !== null) obj.stime = stime;
   if (status !== undefined && status !== null) obj.status = status;
   const payload = encoder.encode(JSON.stringify(obj));
   pendingMessages.push({
-    topic: tagNameToTopic(name, activeTagPathSplitters),
+    topic: tagNameToTopic(cleanName, activeTagPathSplitters),
     payload,
     qos: 0,
     retain: false,
@@ -135,12 +137,7 @@ async function graphqlPost(url: string, body: object, token?: string): Promise<u
 }
 
 async function connectToWinCCOA(config: ConnectionConfig) {
-  activeTagPathSplitters = [":", "."].concat(
-    config.tagPathSplit
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && s !== ":" && s !== ".")
-  );
+  activeTagPathSplitters = [...new Set([":"].concat([...config.tagPathSplit]))];
   const http = httpUrl(config);
 
   // Step 1 — Authenticate
@@ -232,9 +229,16 @@ async function connectToWinCCOA(config: ConnectionConfig) {
           sendDpQueryConnectAll(socket, `SELECT '_original.._value', '_original.._stime', '_original.._status' FROM '${pattern}'`);
         }
 
-        // Explicit tag subscriptions → dpConnect in chunks
-        // Tags without "." have no element specified — append "." to reference the root element
-        const dpeNames = explicitTags.map((t) => t.includes(".") ? t : `${t}.`);
+        // Explicit tag subscriptions → dpConnect with 3 attributes per tag
+        // Tags without a "." have no element specified — add "." before the attribute separator
+        const dpeNames = explicitTags.flatMap((t) => {
+          const base = t.includes(".") ? t : `${t}.`;
+          return [
+            `${base}:_online.._value`,
+            `${base}:_online.._stime`,
+            `${base}:_online.._status`,
+          ];
+        });
         for (let i = 0; i < dpeNames.length; i += CHUNK_SIZE) {
           sendDpConnect(socket, dpeNames.slice(i, i + CHUNK_SIZE));
         }
@@ -275,9 +279,21 @@ async function connectToWinCCOA(config: ConnectionConfig) {
           }
           const names = update.dpeNames ?? [];
           const values = update.values ?? [];
+          // Group by base tag name (strip ":_online.._value" etc. — everything from last ":")
+          const tagData = new Map<string, { value?: unknown; stime?: unknown; status?: unknown }>();
           for (let i = 0; i < names.length; i++) {
-            if (config.filterInternalTags && names[i].split(":").pop()!.startsWith("_")) continue;
-            emitMessage(names[i], values[i] ?? null);
+            const lastColon = names[i].lastIndexOf(":");
+            const baseName = lastColon >= 0 ? names[i].slice(0, lastColon) : names[i];
+            const attr = lastColon >= 0 ? names[i].slice(lastColon + 1) : "";
+            if (!tagData.has(baseName)) tagData.set(baseName, {});
+            const d = tagData.get(baseName)!;
+            if (attr === "_online.._value") d.value = values[i];
+            else if (attr === "_online.._stime") d.stime = values[i];
+            else if (attr === "_online.._status") d.status = values[i];
+          }
+          for (const [name, d] of tagData) {
+            if (config.filterInternalTags && name.split(":").pop()!.startsWith("_")) continue;
+            emitMessage(name, d.value ?? null, d.stime, d.status);
           }
         }
         break;

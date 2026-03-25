@@ -14,6 +14,7 @@ export default function TagBrowserModal(props: Props) {
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  let lastClickedIndex = -1;
 
   async function browse() {
     setLoading(true);
@@ -23,6 +24,7 @@ export default function TagBrowserModal(props: Props) {
       const result = await browse(props.config, [filter()]);
       setTags(result);
       setSelected(new Set());
+      lastClickedIndex = -1;
     } catch (err) {
       setError(String(err));
     } finally {
@@ -30,12 +32,27 @@ export default function TagBrowserModal(props: Props) {
     }
   }
 
-  function toggleTag(name: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name); else next.add(name);
-      return next;
-    });
+  function handleTagClick(e: MouseEvent, index: number) {
+    const list = tags();
+    if (e.shiftKey && lastClickedIndex !== -1) {
+      const from = Math.min(lastClickedIndex, index);
+      const to = Math.max(lastClickedIndex, index);
+      const adding = !selected().has(list[lastClickedIndex]);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (let i = from; i <= to; i++) {
+          if (adding) next.add(list[i]); else next.delete(list[i]);
+        }
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(list[index])) next.delete(list[index]); else next.add(list[index]);
+        return next;
+      });
+      lastClickedIndex = index;
+    }
   }
 
   const inputBase = "px-2 py-1.5 text-sm bg-slate-800 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500";
@@ -79,13 +96,16 @@ export default function TagBrowserModal(props: Props) {
             </div>
             <div class="divide-y divide-slate-700/40">
               <For each={tags()}>
-                {(tag) => (
-                  <label class="flex items-center gap-2.5 px-4 py-1.5 hover:bg-slate-700/50 cursor-pointer">
+                {(tag, i) => (
+                  <label
+                    class="flex items-center gap-2.5 px-4 py-1.5 hover:bg-slate-700/50 cursor-pointer select-none"
+                    onClick={(e) => { e.preventDefault(); handleTagClick(e, i()); }}
+                  >
                     <input
                       type="checkbox"
-                      class="accent-blue-500 shrink-0"
+                      class="accent-blue-500 shrink-0 pointer-events-none"
                       checked={selected().has(tag)}
-                      onChange={() => toggleTag(tag)}
+                      readOnly
                     />
                     <span class="text-xs text-slate-300 font-mono">{tag}</span>
                   </label>

@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show, Index } from "solid-js";
 import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
 import type { Subscription } from "../../types/mqtt";
@@ -6,7 +6,7 @@ import TagBrowserModal from "./TagBrowserModal";
 import { loginAndBrowse as winccoaBrowse } from "../../lib/winccoa-api";
 
 export default function SubscriptionModal() {
-  const { connections, activeConnectionId, addSubscription, removeSubscriptionAt, updateSubscription } =
+  const { connections, activeConnectionId, addSubscription, removeSubscriptionAt, updateSubscription, removeTagFromSubscription } =
     useConnections();
   const { getConnectionStatus, subscribeLive, unsubscribeLive, setShowSubscriptionModal } = useUI();
   const connectionStatus = () => activeConnectionId() ? getConnectionStatus(activeConnectionId()!) : "disconnected";
@@ -18,6 +18,7 @@ export default function SubscriptionModal() {
   const [newTopic, setNewTopic] = createSignal("");
   const [newQos, setNewQos] = createSignal<0 | 1 | 2>(0);
   const [showTagBrowser, setShowTagBrowser] = createSignal(false);
+  const [expandedSubIndex, setExpandedSubIndex] = createSignal<number | null>(null);
 
   function handleAdd() {
     const topic = newTopic().trim();
@@ -72,43 +73,75 @@ export default function SubscriptionModal() {
         <div class="flex-1 overflow-auto p-4 space-y-2">
           <For each={subs()}>
             {(sub, index) => (
-              <div class="flex items-center gap-2">
-                <div
-                  class="w-1.5 h-1.5 rounded-full shrink-0"
-                  classList={{
-                    "bg-green-500": connectionStatus() === "connected",
-                    "bg-slate-600": connectionStatus() !== "connected",
-                  }}
-                />
-                <Show when={sub.tags && sub.tags.length > 0} fallback={
-                  <span class="flex-1 min-w-0 text-sm text-slate-300 truncate font-mono text-xs" title={sub.topic}>
-                    {sub.topic}
-                  </span>
-                }>
-                  <span class="flex-1 min-w-0 text-xs text-slate-400 italic">
-                    {sub.tags!.length} specific tags
-                  </span>
-                </Show>
-                <Show when={!isWinCC()}>
-                  <select
-                    class={inputBase + " w-16 shrink-0 py-1 text-xs"}
-                    value={sub.qos}
-                    onChange={(e) => handleQosChange(sub.topic, parseInt(e.currentTarget.value) as 0 | 1 | 2)}
+              <div>
+                <div class="flex items-center gap-2">
+                  <div
+                    class="w-1.5 h-1.5 rounded-full shrink-0"
+                    classList={{
+                      "bg-green-500": connectionStatus() === "connected",
+                      "bg-slate-600": connectionStatus() !== "connected",
+                    }}
+                  />
+                  <Show when={sub.tags && sub.tags.length > 0} fallback={
+                    <span class="flex-1 min-w-0 text-sm text-slate-300 truncate font-mono text-xs" title={sub.topic}>
+                      {sub.topic}
+                    </span>
+                  }>
+                    <button
+                      class="flex-1 min-w-0 text-left text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1"
+                      onClick={() => setExpandedSubIndex(expandedSubIndex() === index() ? null : index())}
+                    >
+                      <svg
+                        class="w-3 h-3 shrink-0 transition-transform"
+                        classList={{ "rotate-90": expandedSubIndex() === index() }}
+                        viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"
+                      >
+                        <path d="M4 2l4 4-4 4" />
+                      </svg>
+                      {sub.tags!.length} specific tags
+                    </button>
+                  </Show>
+                  <Show when={!isWinCC()}>
+                    <select
+                      class={inputBase + " w-16 shrink-0 py-1 text-xs"}
+                      value={sub.qos}
+                      onChange={(e) => handleQosChange(sub.topic, parseInt(e.currentTarget.value) as 0 | 1 | 2)}
+                    >
+                      <option value="0">QoS 0</option>
+                      <option value="1">QoS 1</option>
+                      <option value="2">QoS 2</option>
+                    </select>
+                  </Show>
+                  <button
+                    class="p-1 text-slate-500 hover:text-red-400 shrink-0 transition-colors"
+                    onClick={() => handleRemove(index(), sub.topic)}
+                    title="Remove"
                   >
-                    <option value="0">QoS 0</option>
-                    <option value="1">QoS 1</option>
-                    <option value="2">QoS 2</option>
-                  </select>
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M3 3l6 6M9 3l-6 6" />
+                    </svg>
+                  </button>
+                </div>
+                <Show when={sub.tags && expandedSubIndex() === index()}>
+                  <div class="ml-4 mt-1 mb-1 border-l border-slate-700 pl-3 space-y-0.5">
+                    <Index each={sub.tags}>
+                      {(tag) => (
+                        <div class="flex items-center gap-1.5 group">
+                          <span class="flex-1 min-w-0 text-xs text-slate-300 font-mono truncate">{tag()}</span>
+                          <button
+                            class="p-0.5 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                            onClick={() => removeTagFromSubscription(activeConnectionId()!, index(), tag())}
+                            title="Remove tag"
+                          >
+                            <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+                              <path d="M3 3l6 6M9 3l-6 6" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </Index>
+                  </div>
                 </Show>
-                <button
-                  class="p-1 text-slate-500 hover:text-red-400 shrink-0 transition-colors"
-                  onClick={() => handleRemove(index(), sub.topic)}
-                  title="Remove"
-                >
-                  <svg class="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M3 3l6 6M9 3l-6 6" />
-                  </svg>
-                </button>
               </div>
             )}
           </For>

@@ -109,12 +109,7 @@ async function graphqlPost(url: string, body: object, token?: string): Promise<u
 }
 
 async function connectToWinCCUA(config: ConnectionConfig) {
-  activeTagPathSplitters = ["::"].concat(
-    config.tagPathSplit
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && s !== "::")
-  );
+  activeTagPathSplitters = [...new Set(["::"].concat([...config.tagPathSplit]))];
   const http = httpUrl(config);
 
   // Step 1 — Authenticate and obtain a Bearer token

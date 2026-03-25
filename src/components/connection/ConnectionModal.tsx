@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show, Index } from "solid-js";
 import { createStore } from "solid-js/store";
 import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
@@ -31,6 +31,7 @@ export default function ConnectionModal() {
   const [tagPathSplit, setTagPathSplit] = createSignal(defaults().tagPathSplit ?? "::");
   const [filterInternalTags, setFilterInternalTags] = createSignal(defaults().filterInternalTags ?? false);
   const [showTagBrowser, setShowTagBrowser] = createSignal(false);
+  const [expandedSubIndex, setExpandedSubIndex] = createSignal<number | null>(null);
   const [subscriptions, setSubscriptions] = createStore<Subscription[]>([
     ...defaults().subscriptions,
   ]);
@@ -68,6 +69,16 @@ export default function ConnectionModal() {
 
   function updateSub(index: number, field: keyof Subscription, value: string | number) {
     setSubscriptions(index, field as any, value);
+  }
+
+  function removeTagFromSub(subIndex: number, tag: string) {
+    const tags = subscriptions[subIndex].tags!.filter((t) => t !== tag);
+    if (tags.length === 0) {
+      removeSub(subIndex);
+      setExpandedSubIndex(null);
+    } else {
+      setSubscriptions(subIndex, "tags", tags);
+    }
   }
 
   function handleSave() {
@@ -258,7 +269,7 @@ export default function ConnectionModal() {
                 onInput={(e) => setTagPathSplit(e.currentTarget.value)}
               />
               <span class="text-xs text-slate-500">
-                <code class="text-slate-400">::</code> is always replaced. Add <code class="text-slate-400">.</code> to also split on element hierarchy.
+                Each character is treated as a separator. {connectionType() === "winccoa" ? <><code class="text-slate-400">:</code> is always replaced.</> : <><code class="text-slate-400">::</code> is always replaced.</>}
               </span>
             </div>
             <label class="flex items-center gap-2 cursor-pointer mt-1">
@@ -298,52 +309,70 @@ export default function ConnectionModal() {
             <div class="space-y-1.5">
               <For each={subscriptions}>
                 {(sub, index) => (
-                  <div class="flex gap-2 items-center">
-                    <Show when={sub.tags && sub.tags.length > 0} fallback={
-                      <input
-                        class={inputBase + " min-w-0 flex-1"}
-                        placeholder={connectionType() !== "mqtt" ? "System1::* or *" : "topic/path/#"}
-                        value={sub.topic}
-                        onInput={(e) =>
-                          updateSub(index(), "topic", e.currentTarget.value)
-                        }
-                      />
-                    }>
-                      <div class={inputBase + " min-w-0 flex-1 text-slate-400"}>
-                        {sub.tags!.length} specific tags
+                  <div>
+                    <div class="flex gap-2 items-center">
+                      <Show when={sub.tags && sub.tags.length > 0} fallback={
+                        <input
+                          class={inputBase + " min-w-0 flex-1"}
+                          placeholder={connectionType() !== "mqtt" ? "System1::* or *" : "topic/path/#"}
+                          value={sub.topic}
+                          onInput={(e) => updateSub(index(), "topic", e.currentTarget.value)}
+                        />
+                      }>
+                        <button
+                          class={inputBase + " min-w-0 flex-1 text-left text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors"}
+                          onClick={() => setExpandedSubIndex(expandedSubIndex() === index() ? null : index())}
+                        >
+                          <svg
+                            class="w-3 h-3 shrink-0 transition-transform"
+                            classList={{ "rotate-90": expandedSubIndex() === index() }}
+                            viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"
+                          >
+                            <path d="M4 2l4 4-4 4" />
+                          </svg>
+                          {sub.tags!.length} specific tags
+                        </button>
+                      </Show>
+                      <Show when={connectionType() === "mqtt"}>
+                        <select
+                          class={inputBase + " w-14 shrink-0"}
+                          value={sub.qos}
+                          onChange={(e) => updateSub(index(), "qos", parseInt(e.currentTarget.value))}
+                        >
+                          <option value="0">0</option>
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                        </select>
+                      </Show>
+                      <button
+                        class="p-1 text-slate-500 hover:text-red-400"
+                        onClick={() => removeSub(index())}
+                      >
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+                          <path d="M3 3l6 6M9 3l-6 6" />
+                        </svg>
+                      </button>
+                    </div>
+                    <Show when={sub.tags && expandedSubIndex() === index()}>
+                      <div class="ml-1 mt-1 border-l border-slate-700 pl-3 space-y-0.5">
+                        <Index each={sub.tags}>
+                          {(tag) => (
+                            <div class="flex items-center gap-1.5 group">
+                              <span class="flex-1 min-w-0 text-xs text-slate-300 font-mono truncate">{tag()}</span>
+                              <button
+                                class="p-0.5 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                                onClick={() => removeTagFromSub(index(), tag())}
+                                title="Remove tag"
+                              >
+                                <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+                                  <path d="M3 3l6 6M9 3l-6 6" />
+                                </svg>
+                              </button>
+                            </div>
+                          )}
+                        </Index>
                       </div>
                     </Show>
-                    <Show when={connectionType() === "mqtt"}>
-                      <select
-                        class={inputBase + " w-14 shrink-0"}
-                        value={sub.qos}
-                        onChange={(e) =>
-                          updateSub(
-                            index(),
-                            "qos",
-                            parseInt(e.currentTarget.value)
-                          )
-                        }
-                      >
-                        <option value="0">0</option>
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                      </select>
-                    </Show>
-                    <button
-                      class="p-1 text-slate-500 hover:text-red-400"
-                      onClick={() => removeSub(index())}
-                    >
-                      <svg
-                        class="w-3.5 h-3.5"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      >
-                        <path d="M3 3l6 6M9 3l-6 6" />
-                      </svg>
-                    </button>
                   </div>
                 )}
               </For>
