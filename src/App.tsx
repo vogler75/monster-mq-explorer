@@ -12,8 +12,9 @@ import DetailPane from "./components/layout/DetailPane";
 import ConnectionModal from "./components/connection/ConnectionModal";
 import SubscriptionModal from "./components/connection/SubscriptionPanel";
 
-// Create worker
+// Create workers
 let worker: Worker | null = null;
+let winccuaWorker: Worker | null = null;
 
 function getWorker(): Worker {
   if (!worker) {
@@ -22,6 +23,16 @@ function getWorker(): Worker {
     });
   }
   return worker;
+}
+
+function getWinCCUAWorker(): Worker {
+  if (!winccuaWorker) {
+    winccuaWorker = new Worker(
+      new URL("./workers/winccua.worker.ts", import.meta.url),
+      { type: "module" }
+    );
+  }
+  return winccuaWorker;
 }
 
 export default function App() {
@@ -83,11 +94,17 @@ export default function App() {
     };
   }
 
+  function activeWorker(): Worker | null {
+    const config = activeConnectionId() ? getConnection(activeConnectionId()!) : null;
+    if (config?.connectionType === "winccua") return winccuaWorker;
+    return worker;
+  }
+
   function connect(connectionId: string) {
     const config = getConnection(connectionId);
     if (!config) return;
 
-    const w = getWorker();
+    const w = config.connectionType === "winccua" ? getWinCCUAWorker() : getWorker();
     setupWorkerListeners(w);
 
     setConnectionStatus("connecting");
@@ -100,25 +117,28 @@ export default function App() {
   }
 
   function publish(topic: string, payload: string, qos: 0 | 1 | 2, retain: boolean) {
-    if (worker) {
+    const w = activeWorker();
+    if (w) {
       const cmd: WorkerCommand = { type: "publish", topic, payload, qos, retain };
-      worker.postMessage(cmd);
+      w.postMessage(cmd);
     }
   }
 
   setPublishFn(publish);
 
   function subscribe(topic: string, qos: 0 | 1 | 2) {
-    if (worker) {
+    const w = activeWorker();
+    if (w) {
       const cmd: WorkerCommand = { type: "subscribe", topic, qos };
-      worker.postMessage(cmd);
+      w.postMessage(cmd);
     }
   }
 
   function unsubscribe(topic: string) {
-    if (worker) {
+    const w = activeWorker();
+    if (w) {
       const cmd: WorkerCommand = { type: "unsubscribe", topic };
-      worker.postMessage(cmd);
+      w.postMessage(cmd);
     }
   }
 
@@ -126,9 +146,10 @@ export default function App() {
   setUnsubscribeFn(unsubscribe);
 
   function disconnect() {
-    if (worker) {
+    const w = activeWorker();
+    if (w) {
       const cmd: WorkerCommand = { type: "disconnect" };
-      worker.postMessage(cmd);
+      w.postMessage(cmd);
     }
     setConnectionStatus("disconnected");
   }
@@ -137,6 +158,10 @@ export default function App() {
     if (worker) {
       worker.terminate();
       worker = null;
+    }
+    if (winccuaWorker) {
+      winccuaWorker.terminate();
+      winccuaWorker = null;
     }
   });
 

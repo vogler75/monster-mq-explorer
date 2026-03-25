@@ -20,6 +20,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      webSecurity: false, // allow cross-origin fetch to WinCC UA / other local servers
     },
   });
 

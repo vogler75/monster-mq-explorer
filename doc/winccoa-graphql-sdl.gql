@@ -1,0 +1,2109 @@
+"""
+Indicates exactly one field must be supplied and this field must not be `null`.
+"""
+directive @oneOf on INPUT_OBJECT
+
+scalar JSON
+
+"""
+Any JSON-serializable value
+"""
+scalar Anytype
+
+scalar LangString
+
+scalar Time
+
+enum ElementType {
+  STRUCT
+  CHAR
+  UINT
+  INT
+  FLOAT
+  BOOL
+  BIT32
+  STRING
+  TIME
+  DPID
+  LANGSTRING
+  BLOB
+  BIT64
+  LONG
+  ULONG
+  CHAR_STRUCT
+  UINT_STRUCT
+  INT_STRUCT
+  FLOAT_STRUCT
+  BOOL_STRUCT
+  BIT32_STRUCT
+  STRING_STRUCT
+  TIME_STRUCT
+  DPID_STRUCT
+  DYN_CHAR
+  DYN_UINT
+  DYN_INT
+  DYN_FLOAT
+  DYN_BOOL
+  DYN_BIT32
+  DYN_STRING
+  DYN_TIME
+  DYN_DPID
+  DYN_LANGSTRING
+  DYN_BLOB
+  DYN_BIT64
+  DYN_LONG
+  DYN_ULONG
+  DYN_CHAR_STRUCT
+  DYN_UINT_STRUCT
+  DYN_INT_STRUCT
+  DYN_FLOAT_STRUCT
+  DYN_BOOL_STRUCT
+  DYN_BIT32_STRUCT
+  DYN_STRING_STRUCT
+  DYN_TIME_STRUCT
+  DYN_DPID_STRUCT
+  LANGSTRING_STRUCT
+  DYN_LANGSTRING_STRUCT
+  BLOB_STRUCT
+  DYN_BLOB_STRUCT
+  BIT64_STRUCT
+  DYN_BIT64_STRUCT
+  LONG_STRUCT
+  DYN_LONG_STRUCT
+  ULONG_STRUCT
+  DYN_ULONG_STRUCT
+  TYPEREF
+}
+
+enum CtrlType {
+  TIME_VAR
+  BOOL_VAR
+  INT_VAR
+  UINT_VAR
+  FLOAT_VAR
+  STRING_VAR
+  BIT32_VAR
+  CHAR_VAR
+  DYN_TIME_VAR
+  DYN_BOOL_VAR
+  DYN_INT_VAR
+  DYN_UINT_VAR
+  DYN_FLOAT_VAR
+  DYN_STRING_VAR
+  DYN_BIT32_VAR
+  DYN_CHAR_VAR
+  ATIME_VAR
+  LANGSTRING_VAR
+  BLOB_VAR
+  LONG_VAR
+  ULONG_VAR
+  BIT64_VAR
+}
+
+type Query {
+  """
+  Access to WinCC OA Node.js API methods (backward compatibility)
+  All existing flat query functions are available here
+  """
+  api: API!
+
+  """
+  Extra operations
+  This is a helper namespace for development and testing, not a WinCC OA API function.
+  """
+  extras: ExtrasMethods!
+}
+
+type VersionInfo {
+  """
+  API version
+  """
+  api: ApiVersion!
+
+  """
+  WinCC OA version
+  """
+  winccoa: SystemVersion!
+}
+
+type ApiVersion {
+  version: Int!
+}
+
+type SystemVersion {
+  display: String!
+  major: Int!
+  minor: Int!
+  numeric: Int!
+  numeric_full: Int!
+  patch: Int!
+  platform: String!
+  revision: Int!
+  version: String!
+}
+
+type DataPoint {
+  """
+  Data point name (without system prefix)
+  """
+  name: String!
+
+  """
+  Full qualified name (with system prefix if applicable)
+  """
+  fullName: String!
+
+  """
+  Data point type definition
+  """
+  type: DataPointType!
+
+  """
+  Whether this data point exists
+  """
+  exists: Boolean!
+
+  """
+  Get a specific element by path (e.g., "status", "value", "status.code")
+  """
+  element(path: String!): DataPointElement
+
+  """
+  Get all elements, optionally filtered by pattern
+  """
+  elements(pattern: String): [DataPointElement!]!
+
+  """
+  Convenience: Get the root value directly (equivalent to element with empty path)
+  """
+  value: JSON
+
+  """
+  Get the data point as a tag with value, timestamp, and status
+  """
+  tag: Tag
+
+  """
+  Get historical tag values with metadata
+  Use either (startTime + endTime) OR lastMinutes
+  Wraps WinCC OA function: dpGetPeriod(startTime, endTime, dpeNames)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetPeriod.html
+  """
+  tagHistory(
+    startTime: Time
+    endTime: Time
+    lastMinutes: Int
+    limit: Int
+    offset: Int
+  ): TagHistory
+
+  """
+  Get alerts associated with this data point
+  Use either (startTime + endTime) OR lastMinutes
+  Wraps WinCC OA function: alertGetPeriod(startTime, endTime, names)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/alertGetPeriod.html
+  """
+  alerts(
+    startTime: Time
+    endTime: Time
+    lastMinutes: Int
+    limit: Int
+    offset: Int
+  ): [Alert!]!
+
+  """
+  Get CNS nodes that link to this data point
+  Wraps WinCC OA function: cnsGetNodesByData(dpName, type, viewPath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetNodesByData.html
+  """
+  cnsNodes: [CNSNode!]!
+
+  """
+  Data point alias/display name
+  Wraps WinCC OA function: dpGetAlias(dpeName)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetAlias.html
+  """
+  alias: String
+
+  """
+  Data point description
+  Wraps WinCC OA function: dpGetDescription(dpeName)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetDescription.html
+  """
+  description: String
+
+  """
+  Data point value format string
+  Wraps WinCC OA function: dpGetFormat(dpeName)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetFormat.html
+  """
+  format: String
+
+  """
+  Data point measurement unit (e.g., "°C", "bar", "m/s")
+  Wraps WinCC OA function: dpGetUnit(dpeName)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetUnit.html
+  """
+  unit: String
+}
+
+type DataPointElement {
+  """
+  Element name (last part of path)
+  """
+  name: String!
+
+  """
+  Full path within the data point (e.g., "status.code")
+  """
+  path: String!
+
+  """
+  Parent data point
+  """
+  dataPoint: DataPoint!
+
+  """
+  Current value
+  Wraps WinCC OA function: dpGet(dpeNames)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGet.html
+  """
+  value: JSON
+
+  """
+  Timestamp of last value change
+  Wraps WinCC OA function: dpGet() with _online.._stime attribute
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGet.html
+  """
+  timestamp: Time
+
+  """
+  Element status information
+  Wraps WinCC OA function: dpGet() with _online.._status attribute
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGet.html
+  """
+  status: ElementStatus!
+
+  """
+  Element data type
+  """
+  elementType: ElementType!
+
+  """
+  Get historical values for this element
+  Use either (startTime + endTime) OR lastMinutes
+  Wraps WinCC OA function: dpGetPeriod(startTime, endTime, dpeNames)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetPeriod.html
+  """
+  history(
+    startTime: Time
+    endTime: Time
+    lastMinutes: Int
+    limit: Int
+    offset: Int
+  ): ElementHistory!
+
+  """
+  Parent element (null if root)
+  Resolved from the data point type structure
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypeGet.html
+  """
+  parent: DataPointElement
+
+  """
+  Child elements (empty if leaf)
+  Resolved from the data point type structure
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypeGet.html
+  """
+  children: [DataPointElement!]!
+}
+
+"""
+Element status bit attributes
+"""
+enum ElementStatusBit {
+  ACTIVE
+  EXP_DEFAULT
+  AUT_DEFAULT
+  OUT_PRANGE
+  OUT_RANGE
+  EXP_INV
+  AUT_INV
+  ONLINE_BAD
+  DEFAULT_BAD
+  FROM_GI
+  FROM_SI
+  PER_ACTIVE
+  CORR
+  COMPR
+  COMP_CORR
+  CORR_ADD
+  COMP_INV
+  STIME_INV
+  TRANSITION
+  LAST_VALUE_STORAGE_OFF
+  VALUE_CHANGED
+  VALUE_UP
+  UNCERTAIN
+  RESERVED
+}
+
+type ElementStatus {
+  """
+  Raw status integer value
+  """
+  value: Int!
+
+  """
+  Binary representation as string
+  """
+  bits: String!
+
+  """
+  Status bits that are ON (set to 1)
+  """
+  on: [ElementStatusBit!]!
+
+  """
+  Status bits that are OFF (set to 0)
+  """
+  off: [ElementStatusBit!]!
+
+  """
+  Check if a specific status bit is set
+  """
+  status(bit: ElementStatusBit!): Boolean!
+}
+
+type ElementHistory {
+  """
+  Element this history belongs to
+  """
+  element: DataPointElement!
+
+  """
+  Historical values
+  """
+  values: [ElementHistoryValue!]!
+
+  """
+  Total number of values in the time range
+  """
+  totalCount: Int!
+}
+
+type ElementHistoryValue {
+  timestamp: Time!
+  value: JSON!
+  status: ElementStatus
+}
+
+type DataPointType {
+  """
+  Type name
+  """
+  name: String!
+
+  """
+  Type structure/hierarchy
+  Wraps WinCC OA function: dpTypeGet(dpt, includeSubTypes)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypeGet.html
+  """
+  structure: DataPointTypeNode!
+
+  """
+  Data point types referenced by this type
+  Wraps WinCC OA function: dpGetDpTypeRefs(dpt)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetDpTypeRefs.html
+  """
+  references: [DataPointType!]!
+
+  """
+  Data point types that reference this type
+  Wraps WinCC OA function: dpGetRefsToDpType(reference)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetRefsToDpType.html
+  """
+  usedBy: [DataPointType!]!
+
+  """
+  Data points of this type
+  Wraps WinCC OA function: dpNames(dpPattern, dpType)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpNames.html
+  """
+  dataPoints(limit: Int, offset: Int): [DataPoint!]!
+
+  """
+  Count of data points of this type
+  Wraps WinCC OA function: dpNames(dpPattern, dpType)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpNames.html
+  """
+  count: Int!
+}
+
+type DataPointTypeNode {
+  """
+  Node name
+  """
+  name: String!
+
+  """
+  Element type
+  """
+  elementType: ElementType!
+
+  """
+  Referenced type (if this node is a reference)
+  """
+  refType: DataPointType
+
+  """
+  Child nodes
+  """
+  children: [DataPointTypeNode!]!
+}
+
+input DpTypeNodeInput {
+  name: String!
+  type: ElementType!
+  refName: String
+  children: [DpTypeNodeInput!]
+  newName: String
+}
+
+type Tag {
+  """
+  Tag name
+  """
+  name: String!
+
+  """
+  Current value
+  Wraps WinCC OA function: dpGet(dpeNames)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGet.html
+  """
+  value: JSON!
+
+  """
+  Timestamp of last update
+  Wraps WinCC OA function: dpGet() with _online.._stime attribute
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGet.html
+  """
+  timestamp: Time!
+
+  """
+  Status information
+  Wraps WinCC OA function: dpGet() with _online.._status attribute
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGet.html
+  """
+  status: ElementStatus!
+
+  """
+  Underlying data point element
+  """
+  element: DataPointElement!
+
+  """
+  Historical values for this tag
+  Wraps WinCC OA function: dpGetPeriod(startTime, endTime, dpeNames)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetPeriod.html
+  """
+  history(
+    startTime: Time!
+    endTime: Time!
+    limit: Int
+    offset: Int
+  ): TagHistory!
+}
+
+type TagHistory {
+  """
+  Tag name
+  """
+  name: String!
+
+  """
+  Historical values
+  """
+  values: [TagValue!]!
+}
+
+type TagValue {
+  timestamp: Time!
+  value: JSON!
+}
+
+"""
+WinCC OA alert handling attributes
+"""
+enum AlertAttributeName {
+  """
+  Alert text message
+  """
+  TEXT
+
+  """
+  Alert abbreviation
+  """
+  ABBR
+
+  """
+  Alert value that triggered the alert
+  """
+  VALUE
+
+  """
+  Alert value with 64-bit status
+  """
+  VALUE_STATUS64
+
+  """
+  Priority value (0-64)
+  """
+  PRIORITY
+
+  """
+  Alert class
+  """
+  CLASS
+
+  """
+  Alert comment
+  """
+  COMMENT
+
+  """
+  Acknowledgement state (0=not acknowledged, 1=acknowledged, 2=came and went)
+  """
+  ACK_STATE
+
+  """
+  User who acknowledged the alert
+  """
+  ACK_USER
+
+  """
+  Time when alert was acknowledged
+  """
+  ACK_TIME
+
+  """
+  Acknowledgement type
+  """
+  ACK_TYPE
+
+  """
+  Acknowledgement obligation
+  """
+  ACK_OBLIG
+
+  """
+  Whether alert can be acknowledged
+  """
+  ACKABLE
+
+  """
+  Single acknowledgement flag
+  """
+  SINGLE_ACK
+
+  """
+  Oldest acknowledgement
+  """
+  OLDEST_ACK
+
+  """
+  Inactive acknowledgement
+  """
+  INACT_ACK
+
+  """
+  Time when alert came
+  """
+  CAME_TIME
+
+  """
+  Index of came time
+  """
+  CAME_TIME_IDX
+
+  """
+  Time when alert went
+  """
+  GONE_TIME
+
+  """
+  Index of gone time
+  """
+  GONE_TIME_IDX
+
+  """
+  System time
+  """
+  SYSTEM_TIME
+
+  """
+  Deletion date
+  """
+  DEL_DATE
+
+  """
+  Alert state
+  """
+  STATE
+
+  """
+  Whether alert is active
+  """
+  ACTIVE
+
+  """
+  Whether alert is inactive
+  """
+  INACTIVE
+
+  """
+  Alert direction (came/went)
+  """
+  DIRECTION
+
+  """
+  Whether alert is visible
+  """
+  VISIBLE
+
+  """
+  Whether alert is obsolete
+  """
+  OBSOLETE
+
+  """
+  Actual alert text
+  """
+  ACT_TEXT
+
+  """
+  Actual priority
+  """
+  ACT_PRIOR
+
+  """
+  Actual state
+  """
+  ACT_STATE
+
+  """
+  Actual state text
+  """
+  ACT_STATE_TEXT
+
+  """
+  Actual state priority
+  """
+  ACT_STATE_PRIOR
+
+  """
+  Actual state color
+  """
+  ACT_STATE_COLOR
+
+  """
+  Actual state foreground color
+  """
+  ACT_STATE_FORE_COLOR
+
+  """
+  Actual state font style
+  """
+  ACT_STATE_FONT_STYLE
+
+  """
+  Actual range
+  """
+  ACT_RANGE
+
+  """
+  Actual state range
+  """
+  ACT_STATE_RANGE
+
+  """
+  Alert background color
+  """
+  ALERT_COLOR
+
+  """
+  Alert foreground color
+  """
+  ALERT_FORE_COLOR
+
+  """
+  Alert font style
+  """
+  ALERT_FONT_STYLE
+
+  """
+  Mapped text
+  """
+  MAPPED_TEXT
+
+  """
+  Whether filter is active
+  """
+  FILTER_ACTIVE
+
+  """
+  Alert order
+  """
+  ORDER
+
+  """
+  Alert parameter
+  """
+  PARAM
+
+  """
+  Discrete states
+  """
+  DISCRETE_STATES
+
+  """
+  Number of ranges
+  """
+  NUM_RANGES
+
+  """
+  Alert destination
+  """
+  DEST
+
+  """
+  Alert destination text
+  """
+  DEST_TEXT
+
+  """
+  Archive flag
+  """
+  ARCHIVE
+
+  """
+  Delete flag
+  """
+  DELETE
+
+  """
+  Last alert flag
+  """
+  LAST
+
+  """
+  Last of all alerts flag
+  """
+  LAST_OF_ALL
+
+  """
+  Escalation class
+  """
+  ESCALATION_CLASS
+
+  """
+  Partner system
+  """
+  PARTNER
+
+  """
+  Partner alert ID
+  """
+  PARTNER_ALERT_ID
+
+  """
+  Partner index
+  """
+  PARTN_IDX
+
+  """
+  Sum flag
+  """
+  SUM
+
+  """
+  Sum alerts
+  """
+  SUMALERTS
+
+  """
+  Alerts collection
+  """
+  ALERTS
+
+  """
+  Summed alerts
+  """
+  SUMMED_ALERTS
+
+  """
+  Count of summed alerts
+  """
+  SUMMED_ALERTS_COUNT
+
+  """
+  Summed abbreviations
+  """
+  SUMMED_ABBR
+
+  """
+  Summed classes
+  """
+  SUMMED_CLASSES
+
+  """
+  Summed colors
+  """
+  SUMMED_COLORS
+
+  """
+  Summed priorities
+  """
+  SUMMED_PRIOS
+
+  """
+  Summed states
+  """
+  SUMMED_STATES
+}
+
+type Alert {
+  """
+  Alert timestamp
+  """
+  time: Time!
+
+  """
+  Alert count/sequence number
+  """
+  count: Int!
+
+  """
+  Data point element name
+  """
+  dpeName: String!
+
+  """
+  Data point this alert belongs to
+  """
+  dp: DataPoint!
+
+  """
+  Get a specific alert attribute by name
+  Wraps WinCC OA function: alertGet(alertsTime, dpeNames, alertCount)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/alertGet.html
+  """
+  attribute(name: AlertAttributeName!): JSON
+
+  """
+  Common alert attributes (convenience accessors)
+  Wraps WinCC OA function: alertGet(alertsTime, dpeNames, alertCount)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/alertGet.html
+  """
+  text: String
+  acknowledged: Boolean
+  acknowledgedBy: String
+  acknowledgedAt: Time
+  priority: Int
+  severity: String
+}
+
+input AlertTimeInput {
+  time: Time!
+  count: Int!
+  dpe: String!
+}
+
+type AlertPeriodResult {
+  alertTimes: [AlertTime!]!
+  values: [JSON!]!
+}
+
+type AlertTime {
+  time: Time!
+  count: Int!
+  dpe: String!
+}
+
+type CNS {
+  """
+  Get a specific view by name
+  Wraps WinCC OA function: cnsGetViews(systemName) to retrieve views, then filters by name
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetViews.html
+  """
+  view(name: String!): CNSView
+
+  """
+  List all views in the system
+  Wraps WinCC OA function: cnsGetViews(systemName)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetViews.html
+  """
+  views: [CNSView!]!
+
+  """
+  Search for nodes by name pattern
+  Wraps WinCC OA function: cnsGetNodesByName(pattern, viewPath, searchMode, langIdx, type)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetNodesByName.html
+  """
+  searchNodes(
+    pattern: String!
+    viewPath: String
+    searchMode: Int
+    langIdx: Int
+    type: Int
+  ): [CNSNode!]!
+
+  """
+  Search for nodes linked to a data point
+  Wraps WinCC OA function: cnsGetNodesByData(dpName, type, viewPath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetNodesByData.html
+  """
+  searchByDataPoint(
+    dataPoint: String!
+    type: Int
+    viewPath: String
+  ): [CNSNode!]!
+}
+
+type CNSView {
+  """
+  View name
+  """
+  name: String!
+
+  """
+  Display name (multi-language)
+  """
+  displayName: LangString!
+
+  """
+  Path separator
+  """
+  separator: String
+
+  """
+  Get a specific tree by name
+  Wraps WinCC OA function: cnsGetTrees(view) to retrieve all trees, then filters by name
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetTrees.html
+  """
+  tree(name: String!): CNSTree
+
+  """
+  List all trees in this view
+  Wraps WinCC OA function: cnsGetTrees(view)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetTrees.html
+  """
+  trees: [CNSTree!]!
+
+  """
+  Check if view exists
+  Wraps WinCC OA function: cnsViewExists(path)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsViewExists.html
+  """
+  exists: Boolean!
+}
+
+type CNSTree {
+  """
+  Tree name
+  """
+  name: String!
+
+  """
+  Display name (multi-language)
+  """
+  displayName: LangString!
+
+  """
+  Root node of this tree
+  Wraps WinCC OA function: cnsGetRoot(cnsNodePath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetRoot.html
+  """
+  root: CNSNode!
+
+  """
+  Parent view
+  """
+  view: CNSView!
+
+  """
+  Check if tree exists
+  Wraps WinCC OA function: cnsTreeExists(path)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsTreeExists.html
+  """
+  exists: Boolean!
+}
+
+type CNSNode {
+  """
+  Node name
+  """
+  name: String!
+
+  """
+  Full CNS path
+  """
+  path: String!
+
+  """
+  Display name (multi-language)
+  """
+  displayName: LangString!
+
+  """
+  Display path (multi-language)
+  Wraps WinCC OA function: cnsGetDisplayPath(cnsPath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetDisplayPath.html
+  """
+  displayPath: LangString!
+
+  """
+  Parent node (null if root)
+  Wraps WinCC OA function: cnsGetParent(cnsPath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetParent.html
+  """
+  parent: CNSNode
+
+  """
+  Child nodes
+  Wraps WinCC OA function: cnsGetChildren(cnsPath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetChildren.html
+  """
+  children: [CNSNode!]!
+
+  """
+  Root node of the tree
+  Wraps WinCC OA function: cnsGetRoot(cnsNodePath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetRoot.html
+  """
+  root: CNSNode
+
+  """
+  Tree this node belongs to
+  """
+  tree: CNSTree
+
+  """
+  Linked data point (if any)
+  Wraps WinCC OA function: cnsGetId(cnsPath) to retrieve the data point name
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetId.html
+  """
+  dp: DataPoint
+
+  """
+  Linked data point name string
+  Wraps WinCC OA function: cnsGetId(cnsPath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetId.html
+  """
+  dpName: String
+
+  """
+  Get a specific property value
+  Wraps WinCC OA function: cnsGetProperty(cnsPath, key)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetProperty.html
+  """
+  property(key: String!): JSON
+
+  """
+  List all properties
+  Wraps WinCC OA function: cnsGetPropertyKeys(cnsPath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetPropertyKeys.html
+  """
+  properties: [CNSProperty!]!
+
+  """
+  Check if node exists
+  Wraps WinCC OA function: cnsNodeExists(path)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsNodeExists.html
+  """
+  exists: Boolean!
+}
+
+type CNSProperty {
+  """
+  Property key
+  """
+  key: String!
+
+  """
+  Property value
+  """
+  value: JSON!
+
+  """
+  Property type
+  """
+  type: CtrlType!
+}
+
+input CnsTreeNodeInput {
+  name: String!
+  displayName: JSON!
+  dp: String
+  children: [CnsTreeNodeInput!]
+}
+
+type API {
+  """
+  Alert-related functions
+  """
+  alert: AlertMethods!
+
+  """
+  CNS (Central Navigation Service) functions
+  """
+  cns: CnsMethods!
+
+  """
+  Data Point functions
+  """
+  dp: DataPointMethods!
+
+  """
+  Data Point Type functions
+  """
+  dpType: DataPointTypeMethods!
+
+  """
+  System functions
+  """
+  system: SystemMethods!
+
+  """
+  Redundancy functions
+  """
+  redundancy: RedundancyMethods!
+}
+
+"""
+Alert-related WinCC OA functions
+"""
+type AlertMethods {
+  """
+  Retrieves the last alert attributes of a data point.
+
+  @param alertsTime - Alert time(s) to retrieve
+  @param dpeNames - Data point element names with alert config
+  @param alertCount - Optional serial number of alert
+  @returns Retrieved alert attribute values
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/alertGet.html
+  """
+  alertGet(
+    alertsTime: [AlertTimeInput!]!
+    dpeNames: [String!]!
+    alertCount: Int
+  ): JSON!
+
+  """
+  Retrieves alert values for a specific time period.
+
+  @param startTime - Start of the time interval
+  @param endTime - End of the time interval
+  @param names - Alert handling attribute names
+  @returns Object with alert times and corresponding values
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/alertGetPeriod.html
+  """
+  alertGetPeriod(
+    startTime: Time!
+    endTime: Time!
+    names: [String!]!
+  ): AlertPeriodResult!
+}
+
+"""
+CNS (Central Navigation Service) WinCC OA functions
+"""
+type CnsMethods {
+  """
+  Returns paths of all views for given system.
+
+  @param systemName - System name
+  @returns Array of paths for all found views for systemName
+  @throws WinccoaError when systemName does not exist
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetViews.html
+  """
+  getViews(systemName: String!): [String!]!
+
+  """
+  Returns ID paths of all trees in a view.
+
+  @param view - View name
+  @returns Array of tree paths
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetTrees.html
+  """
+  getTrees(view: String!): [String!]!
+
+  """
+  Returns paths of all children nodes for given path.
+
+  @param cnsPath - ID path of the node
+  @returns Array of child node paths
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetChildren.html
+  """
+  getChildren(cnsPath: String!): [String!]!
+
+  """
+  Returns parent node path for given path.
+
+  @param cnsPath - ID path of the node
+  @returns Parent node path
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetParent.html
+  """
+  getParent(cnsPath: String!): String!
+
+  """
+  Returns root node path of tree containing given node.
+
+  @param cnsNodePath - ID path of the node
+  @returns Root node ID path
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetRoot.html
+  """
+  getRoot(cnsNodePath: String!): String!
+
+  """
+  Returns display names for node with given path.
+
+  @param cnsPath - CNS path for the node
+  @returns Multi-language display names
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetDisplayNames.html
+  """
+  getDisplayNames(cnsPath: String!): JSON!
+
+  """
+  Returns display path for node with given path.
+
+  @param cnsPath - CNS path for the node
+  @returns Multi-language display path
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetDisplayPath.html
+  """
+  getDisplayPath(cnsPath: String!): JSON!
+
+  """
+  Returns data point element name linked with given path.
+
+  @param cnsPath - CNS path of data point element
+  @returns Data point element name or empty string
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetId.html
+  """
+  getId(cnsPath: String!): String!
+
+  """
+  Returns data point element names linked to nodes matching pattern.
+
+  @param pattern - Search pattern with wildcards
+  @param viewPath - Path to view to search (optional)
+  @param searchMode - Search mode flags (optional)
+  @param langIdx - Language index (optional)
+  @param type - Node type filter (optional)
+  @returns Array of data point element names
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetIdSet.html
+  """
+  getIdSet(
+    pattern: String!
+    viewPath: String
+    searchMode: Int
+    langIdx: Int
+    type: Int
+  ): [String!]!
+
+  """
+  Returns CNS paths matching given pattern and criteria.
+
+  @param pattern - Search pattern with wildcards
+  @param viewPath - Path to view to search (optional)
+  @param searchMode - Search mode flags (optional)
+  @param langIdx - Language index (optional)
+  @param type - Node type filter (optional)
+  @returns Array of matching CNS paths
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetNodesByName.html
+  """
+  getNodesByName(
+    pattern: String!
+    viewPath: String
+    searchMode: Int
+    langIdx: Int
+    type: Int
+  ): [String!]!
+
+  """
+  Returns CNS paths for nodes linked to given data point.
+
+  @param dpName - Data point (element) name
+  @param type - Node type filter (optional)
+  @param viewPath - View path to search (optional)
+  @returns Array of matching CNS paths
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetNodesByData.html
+  """
+  getNodesByData(dpName: String!, type: Int, viewPath: String): [String!]!
+
+  """
+  Returns property value for given key from node.
+
+  @param cnsPath - CNS path of the node
+  @param key - Property key
+  @returns Property value
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetProperty.html
+  """
+  getProperty(cnsPath: String!, key: String!): JSON
+
+  """
+  Returns list of property keys for node.
+
+  @param cnsPath - CNS path of the node
+  @returns Array of property keys
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsGetPropertyKeys.html
+  """
+  getPropertyKeys(cnsPath: String!): [String!]!
+
+  """
+  Checks if node with given path exists.
+
+  @param path - CNS ID path
+  @returns Boolean indicating existence
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsNodeExists.html
+  """
+  nodeExists(path: String!): Boolean!
+
+  """
+  Checks if tree with given path exists.
+
+  @param path - CNS ID path
+  @returns Boolean indicating existence
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsTreeExists.html
+  """
+  treeExists(path: String!): Boolean!
+
+  """
+  Checks if view with given path exists.
+
+  @param path - CNS ID path
+  @returns Boolean indicating existence
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsViewExists.html
+  """
+  viewExists(path: String!): Boolean!
+
+  """
+  Checks if path is a node.
+
+  @param path - CNS ID path
+  @returns Boolean indicating if path is node
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsIsNode.html
+  """
+  isNode(path: String!): Boolean!
+
+  """
+  Checks if path is a tree.
+
+  @param path - CNS ID path
+  @returns Boolean indicating if path is tree
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsIsTree.html
+  """
+  isTree(path: String!): Boolean!
+
+  """
+  Checks if path is a view.
+
+  @param path - CNS ID path
+  @returns Boolean indicating if path is view
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsIsView.html
+  """
+  isView(path: String!): Boolean!
+
+  """
+  Checks if ID is valid CNS ID.
+
+  @param id - ID to check
+  @returns Boolean indicating validity
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsCheckId.html
+  """
+  checkId(id: String!): Boolean!
+
+  """
+  Checks if name is valid CNS display name.
+
+  @param name - Display name to check
+  @returns Number (0=valid, -1=incomplete, -2=invalid chars)
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsCheckName.html
+  """
+  checkName(name: JSON!): Int!
+
+  """
+  Checks if separator is valid CNS separator.
+
+  @param separator - Separator to check
+  @returns Boolean indicating validity
+  @throws WinccoaError when invalid parameters
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsCheckSeparator.html
+  """
+  checkSeparator(separator: String!): Boolean!
+}
+
+"""
+Data Point WinCC OA functions
+"""
+type DataPointMethods {
+  """
+  Retrieves the current values of one or more data point elements.
+
+  @param dpeNames - Data point element name(s) of the values to get
+  @returns Promise that resolves to the current value(s) of the DPE(s)
+  @throws WinccoaError when DPE does not exist or current user has no read access to it
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGet.html
+  """
+  get(dpeNames: [String!]!): JSON!
+
+  """
+  Returns all the data point names or the data point element names that match a pattern in alphabetical order.
+
+  @param dpPattern - Search pattern. When an empty pattern is given (=default), then returns all data points.
+                     Wildcards are used to filter data point name. The characters '*' and '?' are used,
+                     where the asterisk ('*') replaces any number of characters and the question mark '?' stands for just one character.
+  @param dpType - Data point type. Allows to restrict the returned data points to a specific data point type.
+  @param ignoreCase - Defines if the search should ignore the casing of the search pattern (=true) or not (=false, default)
+  @returns List with data points or data point element names
+  @throws WinccoaError when invalid argument type is given
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpNames.html
+  """
+  names(dpPattern: String, dpType: String, ignoreCase: Boolean): [String!]!
+
+  """
+  Returns all or selected data point types from the current project.
+
+  @param pattern - Pattern for the returned DPTs. When an empty pattern is given (=default), then returns all DP types.
+                   Wildcards are used to filter data point type name. The characters '*' and '?' are used,
+                   where the asterisk ('*') replaces any number of characters and the question mark '?' stands for just one character.
+  @param systemId - The desired system if querying from other systems. Optional parameter. If this parameter is not defined, the own system is queried.
+  @param includeEmpty - When this is set to false, data point types without existing data points will be ignored.
+  @returns String array with all DP type names
+  @throws WinccoaError when invalid argument type or non-existing systemId is given
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypes.html
+  """
+  types(pattern: String, systemId: Int, includeEmpty: Boolean): [String!]!
+
+  """
+  Returns the value(s) of one or more data point elements from the driver if older than specified age.
+  This function is available for the OPC UA Client, Modbus, S7Plus, SNMP, OPC drivers and S-Bus driver.
+
+  @param age - The maximum age of the value in milliseconds. When value is older than age, then value from the driver is returned.
+  @param dpeNames - Data point element name(s) whose value is queried
+  @returns Promise that resolves to the current value(s) of the DPE(s)
+  @throws WinccoaError when DPE does not exist or current user has no read access to it
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetMaxAge.html
+  """
+  getMaxAge(age: Int!, dpeNames: [String!]!): JSON!
+
+  """
+  Returns the data type of a specific data point element.
+
+  @param dpeName - Name of the data point element
+  @returns Type of a data point element
+  @throws WinccoaError when data point with the given dpeName is not found or invalid argument type
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpElementType.html
+  """
+  elementType(dpeName: String!): ElementType!
+
+  """
+  Returns the data type of a data point attribute.
+
+  @param dpAttributeName - Name of the data point attribute
+  @returns Type of the data point attribute
+  @throws WinccoaError when invalid argument type is given
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpAttributeType.html
+  """
+  attributeType(dpAttributeName: String!): CtrlType!
+
+  """
+  Returns the data point type for a given data point name.
+
+  @param dp - Name of the data point (for example, "ExampleDP_Trend1")
+  @returns Data Point Type name
+  @throws WinccoaError when invalid argument type or dp does not exist
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypeName.html
+  """
+  typeName(dp: String!): String!
+
+  """
+  Returns the type reference of a selected data point element.
+
+  @param dpe - Name of the data point element (for example, "_mp_PUMP1.state.mode")
+  @returns Empty string or type reference as string
+  @throws WinccoaError when invalid argument type or dpe does not exist
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypeRefName.html
+  """
+  typeRefName(dpe: String!): String!
+
+  """
+  Checks the existence of a valid data point identifier.
+
+  @param dpeName - A data point identifier: a sys, a DPT, a DP, a DPE, a config, a detail or an attr
+  @returns true if at least one part of a data point identifier can be resolved correctly, otherwise false
+  @throws WinccoaError when invalid argument type is given
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpExists.html
+  """
+  exists(dpeName: String!): Boolean!
+
+  """
+  Queries DP attributes over a specified period of time.
+
+  @param startTime - The start time of the interval from which values should be returned
+  @param endTime - The end time of the interval from which values should be returned
+  @param dpeNames - Single or multiple Data Points in an array
+  @returns Promise will be resolved to data for the given DPEs if successful. It consists of an array of results (one for each DPE, in the order they are given in dpeNames), each result contains two arrays, one for the values and one for the corresponding value change timestamps
+  @throws WinccoaError when empty data point list or data point not found
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetPeriod.html
+  """
+  getPeriod(startTime: Time!, endTime: Time!, dpeNames: [String!]!): JSON!
+
+  """
+  Retrieves attribute values with the help of SQL statements.
+  Returns a table-like structure where [0][0] is empty, [0][1..n] are column headers,
+  and [1..n][0] are line names (data point names), [1..n][1..n] are the values.
+
+  @param query - SQL statement
+  @returns Promise that resolves to table-like structure with query results
+  @throws WinccoaError when invalid parameter or query string is given
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpQuery.html
+  """
+  query(query: String!): [[JSON!]!]!
+
+  """
+  Returns the alias/display name of a data point or data point element.
+
+  @param dpeName - Data point or data point element name
+  @returns Alias string or null if not set
+  @throws WinccoaError when invalid argument type or dpe does not exist
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetAlias.html
+  """
+  getAlias(dpeName: String!): String
+
+  """
+  Returns the description of a data point or data point element.
+
+  @param dpeName - Data point or data point element name
+  @returns Description string or null if not set
+  @throws WinccoaError when invalid argument type or dpe does not exist
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetDescription.html
+  """
+  getDescription(dpeName: String!): String
+
+  """
+  Returns the format string of a data point or data point element.
+
+  @param dpeName - Data point or data point element name
+  @returns Format string or null if not set
+  @throws WinccoaError when invalid argument type or dpe does not exist
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetFormat.html
+  """
+  getFormat(dpeName: String!): String
+
+  """
+  Returns the unit/measurement unit of a data point or data point element.
+
+  @param dpeName - Data point or data point element name
+  @returns Unit string or null if not set
+  @throws WinccoaError when invalid argument type or dpe does not exist
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetUnit.html
+  """
+  getUnit(dpeName: String!): String
+}
+
+"""
+Data Point Type WinCC OA functions
+"""
+type DataPointTypeMethods {
+  """
+  Retrieves the structure of a data point type.
+
+  @param dpt - Data point type
+  @param includeSubTypes - true: subtypes will be passed
+  @returns Data point type structure as a tree
+  @throws WinccoaError when invalid argument type or dpt does not exist
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypeGet.html
+  """
+  dpTypeGet(dpt: String!, includeSubTypes: Boolean): JSON!
+
+  """
+  Returns all references to other DPTs in a DPT.
+
+  @param dpt - Name of the data point type to be checked for references
+  @returns Object containing two arrays with references and their corresponding data point element paths
+  @throws WinccoaError when invalid argument type or dpt does not exist
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetDpTypeRefs.html
+  """
+  dpGetDpTypeRefs(dpt: String!): DpTypeReferences!
+
+  """
+  Returns all DPTs and DPs that contain the specified DPT as a reference.
+
+  @param reference - Name of the DPT reference to check data point types and data points for
+  @returns Object containing two arrays with DPT names and the corresponding data point element paths
+  @throws WinccoaError when invalid argument type
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpGetRefsToDpType.html
+  """
+  dpGetRefsToDpType(reference: String!): DpTypeReferences!
+}
+
+"""
+System information WinCC OA functions
+"""
+type SystemMethods {
+  """
+  Returns the system ID for a specified system or the current system.
+
+  @param systemName - The name of the system (optional). If not given, returns the system ID of its own system
+  @returns The system ID
+  @throws WinccoaError when invalid system name is given
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlE_R/getSystemId.html
+  """
+  getSystemId(systemName: String): Int!
+
+  """
+  Returns the system name for a specified system ID or the current system.
+
+  @param systemId - System ID (optional). If not given, returns the system name of its own system
+  @returns The system name
+  @throws WinccoaError when invalid system ID is given
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlE_R/getSystemName.html
+  """
+  getSystemName(systemId: Int): String!
+
+  """
+  Returns information about current API and WinCC OA versions.
+
+  @returns API and WinCC OA versions
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlE_R/getVersionInfo.html
+  """
+  getVersionInfo: WinccoaVersionDetails!
+}
+
+"""
+Redundancy WinCC OA functions
+"""
+type RedundancyMethods {
+  """
+  Checks if the event manager to which this manager is connected is currently the active REDU partner.
+
+  @returns true if the event manager is currently the active REDU partner
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlE_R/isReduActive.html
+  """
+  isReduActive: Boolean!
+
+  """
+  Checks whether the project has been configured as redundant.
+
+  @returns true if project has been configured as redundant
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlE_R/isRedundant.html
+  """
+  isRedundant: Boolean!
+}
+
+"""
+Extra WinCC OA functions
+"""
+type ExtrasMethods {
+  """
+  Test dummy query function for testing and development purposes.
+  This is a helper function for development and testing, not a WinCC OA API function.
+
+  @returns Test dummy result with success status, message, and timestamp
+  """
+  testDummy: TestDummyQueryResult!
+}
+
+type WinccoaVersionDetails {
+  api: WinccoaApiVersion!
+  winccoa: WinccoaSystemVersion!
+}
+
+type WinccoaApiVersion {
+  version: Int!
+}
+
+type WinccoaSystemVersion {
+  display: String!
+  major: Int!
+  minor: Int!
+  numeric: Int!
+  numeric_full: Int!
+  patch: Int!
+  platform: String!
+  revision: Int!
+  version: String!
+}
+
+type DpTypeReferences {
+  dptNames: [String!]!
+  dpePaths: [String!]!
+}
+
+type TestDummyQueryResult {
+  """
+  Success status of the test query
+  """
+  success: Boolean!
+
+  """
+  Message from the test query
+  """
+  message: String!
+
+  """
+  Timestamp when the test was executed
+  """
+  timestamp: Time!
+}
+
+type Mutation {
+  """
+  Authentication
+  """
+  login(username: String!, password: String!): AuthPayload!
+
+  """
+  WinCC OA API mutations (backward compatibility)
+  """
+  api: APIMutations!
+
+  """
+  Extra operations
+  """
+  extras: ExtrasMutations!
+}
+
+type APIMutations {
+  """
+  Data point operations
+  """
+  dp: DataPointMutations!
+
+  """
+  Data point type operations
+  """
+  dpType: DataPointTypeMutations!
+
+  """
+  Alert operations
+  """
+  alert: AlertMutations!
+
+  """
+  CNS (Central Navigation Service) operations
+  """
+  cns: CnsMutations!
+}
+
+type AuthPayload {
+  token: String!
+  expiresAt: String!
+}
+
+type DataPointMutations {
+  """
+  Create a new data point
+  Wraps WinCC OA function: dpCreate(dpeName, dpType, systemId, dpId)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpCreate.html
+  """
+  create(dpeName: String!, dpType: String!, systemId: Int, dpId: Int): Boolean!
+
+  """
+  Delete a data point
+  Wraps WinCC OA function: dpDelete(dpName)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpDelete.html
+  """
+  delete(dpName: String!): Boolean!
+
+  """
+  Copy a data point
+  Wraps WinCC OA function: dpCopy(source, destination, driver)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpCopy.html
+  """
+  copy(source: String!, destination: String!, driver: Int): Boolean!
+
+  """
+  Set data point element values immediately (non-blocking)
+  Wraps WinCC OA function: dpSet(dpeNames, values)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpSet.html
+  """
+  set(dpeNames: [String!]!, values: [Anytype!]!): Boolean!
+
+  """
+  Set data point element values and wait for confirmation
+  Wraps WinCC OA function: dpSetWait(dpeNames, values)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpSetWait.html
+  """
+  setWait(dpeNames: [String!]!, values: [Anytype!]!): Boolean!
+
+  """
+  Set data point element values at a specific time (non-blocking)
+  Wraps WinCC OA function: dpSetTimed(time, dpeNames, values)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpSetTimed.html
+  """
+  setTimed(time: Time!, dpeNames: [String!]!, values: [Anytype!]!): Boolean!
+
+  """
+  Set data point element values at a specific time and wait for confirmation
+  Wraps WinCC OA function: dpSetTimedWait(time, dpeNames, values)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpSetTimedWait.html
+  """
+  setTimedWait(time: Time!, dpeNames: [String!]!, values: [Anytype!]!): Boolean!
+
+  """
+  Set data point alias/display name
+  Wraps WinCC OA function: dpSetAlias(dpeName, alias)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpSetAlias.html
+  """
+  setAlias(dpeName: String!, alias: String!): Boolean!
+
+  """
+  Set data point description
+  Wraps WinCC OA function: dpSetDescription(dpeName, description)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpSetDescription.html
+  """
+  setDescription(dpeName: String!, description: String!): Boolean!
+
+  """
+  Set data point value format string
+  Wraps WinCC OA function: dpSetFormat(dpeName, format)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpSetFormat.html
+  """
+  setFormat(dpeName: String!, format: String!): Boolean!
+
+  """
+  Set data point measurement unit
+  Wraps WinCC OA function: dpSetUnit(dpeName, unit)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpSetUnit.html
+  """
+  setUnit(dpeName: String!, unit: String!): Boolean!
+}
+
+type DataPointTypeMutations {
+  """
+  Create a new data point type
+  Wraps WinCC OA function: dpTypeCreate(startNode)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypeCreate.html
+  """
+  create(startNode: DpTypeNodeInput!): Boolean!
+
+  """
+  Change an existing data point type
+  Wraps WinCC OA function: dpTypeChange(startNode)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypeChange.html
+  """
+  change(startNode: DpTypeNodeInput!): Boolean!
+
+  """
+  Delete a data point type
+  Wraps WinCC OA function: dpTypeDelete(dpt)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpTypeDelete.html
+  """
+  delete(dpt: String!): Boolean!
+}
+
+type AlertMutations {
+  """
+  Set alert attributes immediately
+  Wraps WinCC OA function: alertSet(alerts, values)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/alertSet.html
+  """
+  set(alerts: [AlertTimeInput!]!, values: [Anytype!]!): Boolean!
+
+  """
+  Set alert attributes and wait for confirmation
+  Wraps WinCC OA function: alertSetWait(alerts, values)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/alertSetWait.html
+  """
+  setWait(alerts: [AlertTimeInput!]!, values: [Anytype!]!): Boolean!
+
+  """
+  Set alert attributes at a specific time
+  Wraps WinCC OA function: alertSetTimed(time, alerts, values)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/alertSetTimed.html
+  """
+  setTimed(
+    time: Time!
+    alerts: [AlertTimeInput!]!
+    values: [Anytype!]!
+  ): Boolean!
+
+  """
+  Set alert attributes at a specific time and wait for confirmation
+  Wraps WinCC OA function: alertSetTimedWait(time, alerts, values)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/alertSetTimedWait.html
+  """
+  setTimedWait(
+    time: Time!
+    alerts: [AlertTimeInput!]!
+    values: [Anytype!]!
+  ): Boolean!
+}
+
+type CnsMutations {
+  """
+  Create a new CNS view
+  Wraps WinCC OA function: cnsCreateView(view, displayName, separator)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsCreateView.html
+  """
+  createView(view: String!, displayName: JSON!, separator: JSON): Boolean!
+
+  """
+  Add a tree to a CNS view
+  Wraps WinCC OA function: cnsAddTree(cnsParentPath, tree)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsAddTree.html
+  """
+  addTree(cnsParentPath: String!, tree: CnsTreeNodeInput!): Boolean!
+
+  """
+  Add a node to a CNS tree
+  Wraps WinCC OA function: cnsAddNode(cnsParentPath, name, displayName, dp)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsAddNode.html
+  """
+  addNode(
+    cnsParentPath: String!
+    name: String!
+    displayName: JSON!
+    dp: String
+  ): Boolean!
+
+  """
+  Change a CNS tree
+  Wraps WinCC OA function: cnsChangeTree(cnsPath, tree)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsChangeTree.html
+  """
+  changeTree(cnsPath: String!, tree: CnsTreeNodeInput!): Boolean!
+
+  """
+  Delete a CNS tree
+  Wraps WinCC OA function: cnsDeleteTree(cnsPath)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsDeleteTree.html
+  """
+  deleteTree(cnsPath: String!): Boolean!
+
+  """
+  Delete a CNS view
+  Wraps WinCC OA function: cnsDeleteView(view)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsDeleteView.html
+  """
+  deleteView(view: String!): Boolean!
+
+  """
+  Set a property on a CNS node
+  Wraps WinCC OA function: cnsSetProperty(cnsPath, key, value, valueType)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/CNS_Ctrl/cnsSetProperty.html
+  """
+  setProperty(
+    cnsPath: String!
+    key: String!
+    value: JSON!
+    valueType: CtrlType!
+  ): Boolean!
+}
+
+type ExtrasMutations {
+  """
+  Test dummy mutation for testing and development purposes.
+  This is a helper function for development and testing, not a WinCC OA API function.
+  No underlying WinCC OA function is called.
+  """
+  testDummy: TestDummyResult!
+}
+
+type TestDummyResult {
+  """
+  Success status of the test mutation
+  """
+  success: Boolean!
+
+  """
+  Message from the test mutation
+  """
+  message: String!
+
+  """
+  Timestamp when the test was executed
+  """
+  timestamp: Time!
+}
+
+type Subscription {
+  """
+  Establishes a connection to receive updates for specified data point elements
+  Wraps WinCC OA function: dpConnect(dpeNames, answer)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpConnect.html
+  """
+  dpConnect(dpeNames: [String!]!, answer: Boolean): DpConnectUpdate!
+
+  """
+  Connects to receive updates for a single query result
+  Wraps WinCC OA function: dpQueryConnectSingle(query, answer, blockingTime)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpQueryConnectSingle.html
+  """
+  dpQueryConnectSingle(
+    query: String!
+    answer: Boolean
+    blockingTime: Int
+  ): DpQueryConnectUpdate!
+
+  """
+  Connects to receive updates for all matching query results
+  Wraps WinCC OA function: dpQueryConnectAll(query, answer, blockingTime)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpQueryConnectAll.html
+  """
+  dpQueryConnectAll(
+    query: String!
+    answer: Boolean
+    blockingTime: Int
+  ): DpQueryConnectUpdate!
+
+  """
+  Establishes a typed connection to receive updates for specified data point elements
+  Wraps WinCC OA function: dpConnect(dpeNames, answer)
+  @see https://www.winccoa.com/documentation/WinCCOA/latest/en_US/ControlA_D/dpConnect.html
+  """
+  tagSubscribe(dpeNames: [String!]!, answer: Boolean): TagUpdate!
+}
+
+type DpConnectUpdate {
+  dpeNames: [String!]!
+  values: [JSON!]!
+  type: String!
+  error: JSON
+}
+
+type DpQueryConnectUpdate {
+  values: [[JSON!]!]!
+  type: String!
+  error: JSON
+}
+
+type TagUpdate {
+  tags: [Tag!]!
+  type: String!
+  error: JSON
+}

@@ -1,6 +1,7 @@
 export interface ConnectionConfig {
   id: string;
   name: string;
+  connectionType: "mqtt" | "winccua";
   host: string;
   port: number;
   protocol: "ws" | "wss";
@@ -45,6 +46,7 @@ export function createDefaultConnection(): ConnectionConfig {
   return {
     id: crypto.randomUUID(),
     name: "New Connection",
+    connectionType: "mqtt",
     host: "broker.hivemq.com",
     port: 8884,
     protocol: "wss",
@@ -53,5 +55,21 @@ export function createDefaultConnection(): ConnectionConfig {
     password: "",
     clientId: `monster-mqtt-${Math.random().toString(36).slice(2, 8)}`,
     subscriptions: [{ topic: "#", qos: 0 }],
+  };
+}
+
+export function createDefaultWinCCUAConnection(): ConnectionConfig {
+  return {
+    id: crypto.randomUUID(),
+    name: "New WinCC Unified Connection",
+    connectionType: "winccua",
+    host: "localhost",
+    port: 443,
+    protocol: "wss",
+    path: "/graphql",
+    username: "",
+    password: "",
+    clientId: "",
+    subscriptions: [{ topic: "*", qos: 0 }],
   };
 }

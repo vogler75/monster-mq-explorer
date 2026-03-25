@@ -1,8 +1,8 @@
-import { createSignal, createEffect, For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
 import type { ConnectionConfig, Subscription } from "../../types/mqtt";
-import { createDefaultConnection } from "../../types/mqtt";
+import { createDefaultConnection, createDefaultWinCCUAConnection } from "../../types/mqtt";
 
 export default function ConnectionModal() {
   const { addConnection, updateConnection, getConnection } = useConnections();
@@ -14,6 +14,9 @@ export default function ConnectionModal() {
 
   const defaults = () => existing() ?? createDefaultConnection();
 
+  const [connectionType, setConnectionType] = createSignal<"mqtt" | "winccua">(
+    defaults().connectionType ?? "mqtt"
+  );
   const [name, setName] = createSignal(defaults().name);
   const [host, setHost] = createSignal(defaults().host);
   const [port, setPort] = createSignal(defaults().port);
@@ -25,6 +28,19 @@ export default function ConnectionModal() {
   const [subscriptions, setSubscriptions] = createSignal<Subscription[]>([
     ...defaults().subscriptions,
   ]);
+
+  function switchType(type: "mqtt" | "winccua") {
+    if (isEditing()) return; // don't switch type when editing
+    const template = type === "winccua" ? createDefaultWinCCUAConnection() : createDefaultConnection();
+    setConnectionType(type);
+    setPort(template.port);
+    setPath(template.path);
+    setClientId(template.clientId);
+    setSubscriptions([...template.subscriptions]);
+    if (name() === createDefaultConnection().name || name() === createDefaultWinCCUAConnection().name) {
+      setName(template.name);
+    }
+  }
 
   function addSub() {
     setSubscriptions([...subscriptions(), { topic: "", qos: 0 }]);
@@ -45,6 +61,7 @@ export default function ConnectionModal() {
   function handleSave() {
     const config: Partial<ConnectionConfig> = {
       name: name(),
+      connectionType: connectionType(),
       host: host(),
       port: port(),
       protocol: protocol(),
@@ -87,6 +104,35 @@ export default function ConnectionModal() {
         </div>
 
         <div class="p-4 space-y-3">
+          {/* Connection Type */}
+          <div>
+            <label class={labelClass}>Connection Type</label>
+            <div class="flex gap-1">
+              <button
+                class={`flex-1 py-1.5 text-xs rounded transition-colors ${
+                  connectionType() === "mqtt"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-700 text-slate-400 hover:text-slate-200"
+                }`}
+                onClick={() => switchType("mqtt")}
+                disabled={isEditing()}
+              >
+                MQTT
+              </button>
+              <button
+                class={`flex-1 py-1.5 text-xs rounded transition-colors ${
+                  connectionType() === "winccua"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-700 text-slate-400 hover:text-slate-200"
+                }`}
+                onClick={() => switchType("winccua")}
+                disabled={isEditing()}
+              >
+                WinCC Unified
+              </button>
+            </div>
+          </div>
+
           {/* Name */}
           <div>
             <label class={labelClass}>Connection Name</label>
@@ -133,7 +179,9 @@ export default function ConnectionModal() {
 
           {/* Path */}
           <div>
-            <label class={labelClass}>WebSocket Path</label>
+            <label class={labelClass}>
+              {connectionType() === "winccua" ? "GraphQL Path" : "WebSocket Path"}
+            </label>
             <input
               class={inputClass}
               value={path()}
@@ -162,20 +210,24 @@ export default function ConnectionModal() {
             </div>
           </div>
 
-          {/* Client ID */}
-          <div>
-            <label class={labelClass}>Client ID</label>
-            <input
-              class={inputClass}
-              value={clientId()}
-              onInput={(e) => setClientId(e.currentTarget.value)}
-            />
-          </div>
+          {/* Client ID — MQTT only */}
+          <Show when={connectionType() === "mqtt"}>
+            <div>
+              <label class={labelClass}>Client ID</label>
+              <input
+                class={inputClass}
+                value={clientId()}
+                onInput={(e) => setClientId(e.currentTarget.value)}
+              />
+            </div>
+          </Show>
 
-          {/* Subscriptions */}
+          {/* Subscriptions / Tag Filters */}
           <div>
             <div class="flex items-center justify-between mb-1">
-              <label class={labelClass + " mb-0"}>Subscriptions</label>
+              <label class={labelClass + " mb-0"}>
+                {connectionType() === "winccua" ? "Tag Name Filters" : "Subscriptions"}
+              </label>
               <button
                 class="text-xs text-blue-400 hover:text-blue-300"
                 onClick={addSub}
@@ -189,27 +241,29 @@ export default function ConnectionModal() {
                   <div class="flex gap-2 items-center">
                     <input
                       class={inputBase + " min-w-0 flex-1"}
-                      placeholder="topic/path/#"
+                      placeholder={connectionType() === "winccua" ? "System1::* or *" : "topic/path/#"}
                       value={sub.topic}
                       onInput={(e) =>
                         updateSub(index(), "topic", e.currentTarget.value)
                       }
                     />
-                    <select
-                      class={inputBase + " w-14 shrink-0"}
-                      value={sub.qos}
-                      onChange={(e) =>
-                        updateSub(
-                          index(),
-                          "qos",
-                          parseInt(e.currentTarget.value)
-                        )
-                      }
-                    >
-                      <option value="0">0</option>
-                      <option value="1">1</option>
-                      <option value="2">2</option>
-                    </select>
+                    <Show when={connectionType() === "mqtt"}>
+                      <select
+                        class={inputBase + " w-14 shrink-0"}
+                        value={sub.qos}
+                        onChange={(e) =>
+                          updateSub(
+                            index(),
+                            "qos",
+                            parseInt(e.currentTarget.value)
+                          )
+                        }
+                      >
+                        <option value="0">0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                      </select>
+                    </Show>
                     <button
                       class="p-1 text-slate-500 hover:text-red-400"
                       onClick={() => removeSub(index())}
@@ -229,7 +283,9 @@ export default function ConnectionModal() {
               </For>
               <Show when={subscriptions().length === 0}>
                 <div class="text-xs text-slate-500 py-1">
-                  No subscriptions. Add at least one to receive messages.
+                  {connectionType() === "winccua"
+                    ? "No filters. Add at least one name filter to browse tags."
+                    : "No subscriptions. Add at least one to receive messages."}
                 </div>
               </Show>
             </div>

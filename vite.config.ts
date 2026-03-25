@@ -58,6 +58,7 @@ export default defineConfig({
   },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __ELECTRON__: JSON.stringify(process.env.ELECTRON === "1"),
   },
   build: {
     target: "esnext",

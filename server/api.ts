@@ -70,6 +70,31 @@ export async function handleApiRequest(
     return true;
   }
 
+  // POST /api/winccua-proxy — forward GraphQL HTTP requests to WinCC UA server,
+  // bypassing CORS restrictions that the browser enforces for cross-origin fetches.
+  if (url === "/api/winccua-proxy" && req.method === "POST") {
+    const target = req.headers["x-wincc-target"] as string | undefined;
+    if (!target) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: "Missing X-Wincc-Target header" }));
+      return true;
+    }
+    const body = await readBody(req);
+    const forwardHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    const auth = req.headers["authorization"];
+    if (auth) forwardHeaders["Authorization"] = typeof auth === "string" ? auth : auth[0];
+    try {
+      const proxyRes = await fetch(target, { method: "POST", headers: forwardHeaders, body });
+      res.statusCode = proxyRes.status;
+      res.setHeader("Content-Type", "application/json");
+      res.end(await proxyRes.text());
+    } catch (err) {
+      res.statusCode = 502;
+      res.end(JSON.stringify({ error: `Proxy error: ${err}` }));
+    }
+    return true;
+  }
+
   res.statusCode = 404;
   res.end(JSON.stringify({ error: "Not found" }));
   return true;

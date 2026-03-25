@@ -27,6 +27,7 @@ function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig
   return {
     id: typeof input.id === "string" && input.id ? input.id : defaults.id,
     name: typeof input.name === "string" ? input.name : defaults.name,
+    connectionType: input.connectionType === "winccua" ? "winccua" : "mqtt",
     host: typeof input.host === "string" ? input.host : defaults.host,
     port: typeof input.port === "number" && Number.isFinite(input.port) ? input.port : defaults.port,
     protocol: input.protocol === "ws" ? "ws" : defaults.protocol,
