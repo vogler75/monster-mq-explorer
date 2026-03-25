@@ -1,7 +1,8 @@
 import { get, set } from "idb-keyval";
-import { createDefaultConnection, type ConnectionConfig, type Subscription } from "../types/mqtt";
+import { createDefaultConnection, type ConnectionConfig, type Subscription, type Watchlist } from "../types/mqtt";
 
 const CONNECTIONS_STORAGE_KEY = "monster-mqtt-explorer.connections";
+const WATCHLISTS_STORAGE_KEY = "monster-mqtt-explorer.watchlists";
 
 function normalizeQos(value: unknown): 0 | 1 | 2 {
   return value === 1 || value === 2 ? value : 0;
@@ -94,4 +95,28 @@ export async function importConnections(jsonText: string): Promise<ConnectionCon
 
 export function exportConnections(connections: ConnectionConfig[]): string {
   return JSON.stringify(connections, null, 2);
+}
+
+function normalizeWatchlist(input: unknown): Watchlist | null {
+  if (!input || typeof input !== "object") return null;
+  const r = input as Record<string, unknown>;
+  if (typeof r.id !== "string" || typeof r.name !== "string") return null;
+  const topics = Array.isArray(r.topics)
+    ? (r.topics as unknown[]).filter((t): t is string => typeof t === "string")
+    : [];
+  return { id: r.id, name: r.name, topics };
+}
+
+export async function loadWatchlists(): Promise<Watchlist[]> {
+  try {
+    const stored = await get<unknown>(WATCHLISTS_STORAGE_KEY);
+    if (!Array.isArray(stored)) return [];
+    return stored.map(normalizeWatchlist).filter((w): w is Watchlist => w !== null);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveWatchlists(watchlists: Watchlist[]): Promise<void> {
+  await set(WATCHLISTS_STORAGE_KEY, watchlists);
 }

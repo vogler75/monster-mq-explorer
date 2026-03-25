@@ -6,6 +6,7 @@ import { useConnections } from "./stores/connections";
 import { useTopicTree } from "./stores/topics";
 import { useUI } from "./stores/ui";
 import { useMessageLog } from "./stores/messageLog";
+import { useWatchlist } from "./stores/watchlist";
 import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
@@ -35,6 +36,7 @@ export default function App() {
   const { processBatch } = useTopicTree();
   const { getConnectionStatus, setConnectionStatus, showConnectionModal, showSubscriptionModal, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
   const { addMessages } = useMessageLog();
+  const { pinnedTopics } = useWatchlist();
 
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
 
@@ -76,7 +78,7 @@ export default function App() {
             ? event.batch.map((m) => ({ ...m, topic: `${config.name}/${m.topic}` }))
             : event.batch;
           const newTopics = processBatch(batch);
-          addMessages(batch, selectedTopic());
+          addMessages(batch, selectedTopic(), pinnedTopics());
           if (autoExpand() && newTopics.length > 0) {
             expandTopics(newTopics);
           }

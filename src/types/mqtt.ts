@@ -50,6 +50,13 @@ export interface FlatTreeNode {
   key: string;
 }
 
+/** A named, saved set of pinned topic full-paths. */
+export interface Watchlist {
+  id: string;
+  name: string;
+  topics: string[];
+}
+
 export function createDefaultConnection(): ConnectionConfig {
   return {
     id: crypto.randomUUID(),

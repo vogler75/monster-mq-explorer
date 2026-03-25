@@ -1,7 +1,8 @@
-import { createMemo, createSignal, createEffect, For } from "solid-js";
+import { createMemo, createSignal, createEffect, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { useMessageLog, type LoggedMessage } from "../../stores/messageLog";
+import { useWatchlist } from "../../stores/watchlist";
 import { useUI } from "../../stores/ui";
 import { useTopicTree } from "../../stores/topics";
 import { getNodeByTopic } from "../../lib/topic-tree";
@@ -64,6 +65,7 @@ export default function MessageTable(props: Props) {
     logSort, setLogSort,
     logMessages, liveTopics, recentlyUpdated, clearLog, seedLiveFromTree,
   } = useMessageLog();
+  const { pinnedTopics, isPinned, pinTopics, unpinTopics, clearPinned, watchlists, saveWatchlist, loadWatchlist, deleteWatchlist } = useWatchlist();
   const { topicTree } = useTopicTree();
 
   const [colTime, setColTime] = createSignal(100);
@@ -73,6 +75,17 @@ export default function MessageTable(props: Props) {
   const [payloadMultiline, setPayloadMultiline] = createSignal(false);
   const [jsonColumnsEnabled, setJsonColumnsEnabled] = createSignal(false);
   const [jsonColWidths, setJsonColWidths] = createStore<Record<string, number>>({});
+
+  // Multi-select state for the table rows (by topic string)
+  const [tableSelected, setTableSelected] = createSignal<Set<string>>(new Set<string>());
+  // Last clicked index for shift-select
+  let lastClickedIdx = -1;
+  let lastClickedAdded = true;
+
+  // Watchlist UI state
+  const [showWatchlistMenu, setShowWatchlistMenu] = createSignal(false);
+  const [saveNameInput, setSaveNameInput] = createSignal("");
+  const [showSaveInput, setShowSaveInput] = createSignal(false);
 
   const parsedPayloads = createMemo(() => {
     if (!jsonColumnsEnabled()) return [] as (Record<string, unknown> | null)[];
@@ -164,17 +177,71 @@ export default function MessageTable(props: Props) {
     return topic;
   }
 
+  // ---- Row multi-select (click on row selects it for pinning) ----
+  function handleRowSelect(e: MouseEvent, index: number) {
+    const msgs = displayMessages();
+    const topic = msgs[index]?.topic;
+    if (!topic) return;
+
+    if (e.shiftKey && lastClickedIdx !== -1) {
+      const from = Math.min(lastClickedIdx, index);
+      const to = Math.max(lastClickedIdx, index);
+      setTableSelected((prev) => {
+        const next = new Set(prev);
+        for (let i = from; i <= to; i++) {
+          const t = msgs[i]?.topic;
+          if (!t) continue;
+          if (lastClickedAdded) next.add(t); else next.delete(t);
+        }
+        return next;
+      });
+    } else {
+      const wasSelected = tableSelected().has(topic);
+      setTableSelected((prev) => {
+        const next = new Set(prev);
+        if (wasSelected) next.delete(topic); else next.add(topic);
+        return next;
+      });
+      lastClickedIdx = index;
+      lastClickedAdded = !wasSelected;
+    }
+  }
+
+  function pinSelected() {
+    const sel = tableSelected();
+    if (sel.size === 0) {
+      // Pin all currently visible rows
+      pinTopics(displayMessages().map((m) => m.topic));
+    } else {
+      pinTopics([...sel]);
+      setTableSelected(new Set<string>());
+    }
+  }
+
+  function unpinSelected() {
+    const sel = tableSelected();
+    if (sel.size === 0) {
+      clearPinned();
+    } else {
+      unpinTopics([...sel]);
+      setTableSelected(new Set<string>());
+    }
+  }
+
+  const hasPinned = () => pinnedTopics().size > 0;
+  const hasSelected = () => tableSelected().size > 0;
+
   const thBase = "relative shrink-0 px-1 flex items-center text-slate-400 font-medium select-none overflow-hidden";
   const tdBase = "shrink-0 px-1 truncate";
 
   return (
     <div class="flex flex-col h-full">
       {/* Toolbar */}
-      <div class="flex items-center gap-3 px-2 py-1 border-b border-slate-700 bg-slate-800/60 text-xs shrink-0">
+      <div class="flex items-center gap-3 px-2 py-1 border-b border-slate-700 bg-slate-800/60 text-xs shrink-0 flex-wrap">
         <button
           class="p-0.5 text-slate-500 hover:text-red-400 transition-colors"
-          onClick={() => { clearLog(); props.onSelectMessage(null); }}
-          title="Clear log"
+          onClick={() => { clearLog(pinnedTopics()); props.onSelectMessage(null); }}
+          title="Clear log (keeps pinned rows)"
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4M5 6v4M9 6v4" />
@@ -283,7 +350,151 @@ export default function MessageTable(props: Props) {
             <path d="M2 2h3v10H2M9 2h3v10H9M5 7h4" />
           </svg>
         </button>
-        <span class="text-slate-500">{displayMessages().length} rows</span>
+
+        {/* Divider */}
+        <div class="w-px h-3.5 bg-slate-600 shrink-0" />
+
+        {/* Pin selected rows */}
+        <button
+          class="p-0.5 rounded transition-colors"
+          classList={{
+            "text-amber-400 bg-amber-400/10": hasPinned(),
+            "text-slate-500 hover:text-amber-400": !hasPinned(),
+          }}
+          onClick={pinSelected}
+          title={hasSelected() ? `Sticky ${tableSelected().size} selected row(s)` : "Sticky all visible rows"}
+        >
+          {/* Pin icon */}
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 1L13 5L9.5 8.5L10 13L7 10L4 13L4.5 8.5L1 5L5 1Z" />
+          </svg>
+        </button>
+
+        {/* Unpin button — only shown when there are pinned rows */}
+        <Show when={hasPinned()}>
+          <button
+            class="p-0.5 rounded text-amber-500 hover:text-red-400 transition-colors"
+            onClick={unpinSelected}
+            title={hasSelected() ? "Unpin selected rows" : "Unpin all rows"}
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M9 1L13 5L9.5 8.5L10 13L7 10L4 13L4.5 8.5L1 5L5 1Z" />
+              <line x1="1" y1="1" x2="13" y2="13" />
+            </svg>
+          </button>
+        </Show>
+
+        {/* Watchlist menu */}
+        <div class="relative">
+          <button
+            class="p-0.5 rounded transition-colors"
+            classList={{
+              "text-blue-400 bg-blue-400/10": showWatchlistMenu(),
+              "text-slate-500 hover:text-slate-300": !showWatchlistMenu(),
+            }}
+            onClick={() => { setShowWatchlistMenu((v) => !v); setShowSaveInput(false); }}
+            title="Watchlists (save/load sticky rows)"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 2h10v10H2zM2 5h10M5 5v7" />
+            </svg>
+          </button>
+
+          <Show when={showWatchlistMenu()}>
+            {/* Backdrop */}
+            <div class="fixed inset-0 z-40" onClick={() => { setShowWatchlistMenu(false); setShowSaveInput(false); }} />
+            <div class="absolute left-0 top-full mt-1 z-50 bg-slate-800 border border-slate-600 rounded shadow-xl min-w-[220px]">
+              {/* Save current pinned set */}
+              <Show
+                when={showSaveInput()}
+                fallback={
+                  <button
+                    class="w-full text-left px-3 py-1.5 text-xs text-blue-400 hover:bg-slate-700 rounded-t"
+                    disabled={!hasPinned()}
+                    classList={{ "opacity-40 cursor-not-allowed": !hasPinned() }}
+                    onClick={() => { if (hasPinned()) setShowSaveInput(true); }}
+                  >
+                    Save sticky rows as watchlist…
+                  </button>
+                }
+              >
+                <div class="px-2 py-1.5 flex gap-1">
+                  <input
+                    class="flex-1 px-1.5 py-0.5 text-xs bg-slate-700 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500"
+                    placeholder="Watchlist name"
+                    value={saveNameInput()}
+                    onInput={(e) => setSaveNameInput(e.currentTarget.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && saveNameInput().trim()) {
+                        saveWatchlist(saveNameInput().trim());
+                        setSaveNameInput("");
+                        setShowSaveInput(false);
+                        setShowWatchlistMenu(false);
+                      } else if (e.key === "Escape") {
+                        setShowSaveInput(false);
+                      }
+                    }}
+                    ref={(el) => requestAnimationFrame(() => el?.focus())}
+                  />
+                  <button
+                    class="px-2 py-0.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded"
+                    disabled={!saveNameInput().trim()}
+                    onClick={() => {
+                      if (saveNameInput().trim()) {
+                        saveWatchlist(saveNameInput().trim());
+                        setSaveNameInput("");
+                        setShowSaveInput(false);
+                        setShowWatchlistMenu(false);
+                      }
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </Show>
+
+              {/* Saved watchlists */}
+              <Show
+                when={watchlists.length > 0}
+                fallback={
+                  <div class="px-3 py-2 text-xs text-slate-500 border-t border-slate-700">No saved watchlists</div>
+                }
+              >
+                <div class="border-t border-slate-700">
+                  <For each={watchlists}>
+                    {(wl) => (
+                      <div class="flex items-center gap-1 px-2 py-1 hover:bg-slate-700 group">
+                        <button
+                          class="flex-1 text-left text-xs text-slate-300 group-hover:text-slate-100 truncate"
+                          onClick={() => { loadWatchlist(wl.id); setShowWatchlistMenu(false); }}
+                          title={`Load "${wl.name}" (${wl.topics.length} topics)`}
+                        >
+                          {wl.name}
+                          <span class="ml-1.5 text-slate-500">{wl.topics.length}</span>
+                        </button>
+                        <button
+                          class="p-0.5 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          onClick={() => deleteWatchlist(wl.id)}
+                          title="Delete watchlist"
+                        >
+                          <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M2 2l8 8M10 2l-8 8" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </div>
+          </Show>
+        </div>
+
+        <span class="text-slate-500">
+          {displayMessages().length} rows
+          {hasPinned() && <span class="ml-1 text-amber-500">{pinnedTopics().size} sticky</span>}
+          {hasSelected() && <span class="ml-1 text-blue-400">{tableSelected().size} sel</span>}
+        </span>
         {logMode() === "history" && (
           <label class="flex items-center gap-1 ml-auto">
             <span class="text-slate-500">Max</span>
@@ -299,6 +510,8 @@ export default function MessageTable(props: Props) {
 
       {/* Column headers */}
       <div class="flex items-stretch h-6 border-b border-slate-700 bg-slate-800 shrink-0 text-xs">
+        {/* Small pin indicator column */}
+        <div class="w-4 shrink-0" />
         <div class={thBase} style={{ width: `${colTime()}px` }}>
           Time
           <div
@@ -351,6 +564,8 @@ export default function MessageTable(props: Props) {
               <For each={virtualizer.getVirtualItems()}>
                 {(vRow) => {
                   const msg = () => displayMessages()[vRow.index];
+                  const pinned = () => msg() ? isPinned(msg()!.topic) : false;
+                  const rowSelected = () => msg() ? tableSelected().has(msg()!.topic) : false;
                   return (
                     <div
                       style={{
@@ -360,10 +575,24 @@ export default function MessageTable(props: Props) {
                       class="flex items-center text-xs cursor-pointer border-b border-slate-800/60 hover:bg-slate-700/40 transition-colors font-mono"
                       classList={{
                         "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg()?.id,
+                        "bg-amber-500/10": pinned() && props.selectedMessageId !== msg()?.id,
+                        "outline outline-1 outline-blue-500/50 outline-offset-[-1px]": rowSelected(),
                         "row-updated": flashEnabled() && logMode() === "live" && recentlyUpdated().has(msg()?.topic ?? ""),
                       }}
-                      onClick={() => { const m = msg(); if (m) props.onSelectMessage(props.selectedMessageId === m.id ? null : m); }}
+                      onClick={(e) => {
+                        handleRowSelect(e, vRow.index);
+                        const m = msg();
+                        if (!e.shiftKey && m) props.onSelectMessage(props.selectedMessageId === m.id ? null : m);
+                      }}
                     >
+                      {/* Pin indicator */}
+                      <div class="w-4 shrink-0 flex items-center justify-center">
+                        <Show when={pinned()}>
+                          <svg class="w-2.5 h-2.5 text-amber-400" viewBox="0 0 14 14" fill="currentColor">
+                            <path d="M9 1L13 5L9.5 8.5L10 13L7 10L4 13L4.5 8.5L1 5L5 1Z" />
+                          </svg>
+                        </Show>
+                      </div>
                       <div class={tdBase + " text-slate-500"} style={{ width: `${colTime()}px` }}>{msg() ? formatTimestamp(msg()!.timestamp) : ""}</div>
                       <div class={tdBase + " text-slate-300"} style={{ width: `${colTopic()}px` }}>{msg() ? trimTopic(msg()!.topic) : ""}</div>
                       <div class={tdBase + " text-center text-slate-500"} style={{ width: `${colQos()}px` }}>{msg()?.qos ?? ""}</div>
@@ -387,29 +616,46 @@ export default function MessageTable(props: Props) {
         {payloadMultiline() && (
           <div ref={multilineRef!} class="h-full overflow-auto">
             <For each={displayMessages()}>
-              {(msg) => (
-                <div
-                  class="flex text-xs cursor-pointer border-b border-slate-800/60 hover:bg-slate-700/40 transition-colors font-mono py-1"
-                  classList={{
-                    "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg.id,
-                    "row-updated": flashEnabled() && logMode() === "live" && recentlyUpdated().has(msg.topic),
-                  }}
-                  onClick={() => props.onSelectMessage(props.selectedMessageId === msg.id ? null : msg)}
-                >
-                  <div class="shrink-0 px-1 text-slate-500 pt-0.5" style={{ width: `${colTime()}px` }}>{formatTimestamp(msg.timestamp)}</div>
-                  <div class="shrink-0 px-1 text-slate-300 truncate pt-0.5" style={{ width: `${colTopic()}px` }}>{trimTopic(msg.topic)}</div>
-                  <div class="shrink-0 px-1 text-center text-slate-500 pt-0.5" style={{ width: `${colQos()}px` }}>{msg.qos}</div>
-                  <div class="shrink-0 px-1 text-center text-amber-500 pt-0.5" style={{ width: `${colRetain()}px` }}>{msg.retain ? "R" : ""}</div>
-                  {jsonColumnsEnabled()
-                    ? (() => { const parsed = parseJsonObject(msg.payload); return (
-                        <For each={jsonKeys()}>{(key) => (
-                          <div class="shrink-0 px-1 text-slate-300 truncate pt-0.5" style={{ width: `${jsonColWidths[key] ?? 100}px` }}>{formatJsonCell(parsed?.[key])}</div>
-                        )}</For>
-                      ); })()
-                    : <div class="flex-1 px-1 text-slate-300 whitespace-pre-wrap break-all">{payloadToString(msg.payload)}</div>
-                  }
-                </div>
-              )}
+              {(msg, i) => {
+                const pinned = () => isPinned(msg.topic);
+                const rowSelected = () => tableSelected().has(msg.topic);
+                return (
+                  <div
+                    class="flex text-xs cursor-pointer border-b border-slate-800/60 hover:bg-slate-700/40 transition-colors font-mono py-1"
+                    classList={{
+                      "bg-blue-600/20 hover:bg-blue-600/25": props.selectedMessageId === msg.id,
+                      "bg-amber-500/10": pinned() && props.selectedMessageId !== msg.id,
+                      "outline outline-1 outline-blue-500/50 outline-offset-[-1px]": rowSelected(),
+                      "row-updated": flashEnabled() && logMode() === "live" && recentlyUpdated().has(msg.topic),
+                    }}
+                    onClick={(e) => {
+                      handleRowSelect(e, i());
+                      if (!e.shiftKey) props.onSelectMessage(props.selectedMessageId === msg.id ? null : msg);
+                    }}
+                  >
+                    {/* Pin indicator */}
+                    <div class="w-4 shrink-0 flex items-center justify-center pt-0.5">
+                      <Show when={pinned()}>
+                        <svg class="w-2.5 h-2.5 text-amber-400" viewBox="0 0 14 14" fill="currentColor">
+                          <path d="M9 1L13 5L9.5 8.5L10 13L7 10L4 13L4.5 8.5L1 5L5 1Z" />
+                        </svg>
+                      </Show>
+                    </div>
+                    <div class="shrink-0 px-1 text-slate-500 pt-0.5" style={{ width: `${colTime()}px` }}>{formatTimestamp(msg.timestamp)}</div>
+                    <div class="shrink-0 px-1 text-slate-300 truncate pt-0.5" style={{ width: `${colTopic()}px` }}>{trimTopic(msg.topic)}</div>
+                    <div class="shrink-0 px-1 text-center text-slate-500 pt-0.5" style={{ width: `${colQos()}px` }}>{msg.qos}</div>
+                    <div class="shrink-0 px-1 text-center text-amber-500 pt-0.5" style={{ width: `${colRetain()}px` }}>{msg.retain ? "R" : ""}</div>
+                    {jsonColumnsEnabled()
+                      ? (() => { const parsed = parseJsonObject(msg.payload); return (
+                          <For each={jsonKeys()}>{(key) => (
+                            <div class="shrink-0 px-1 text-slate-300 truncate pt-0.5" style={{ width: `${jsonColWidths[key] ?? 100}px` }}>{formatJsonCell(parsed?.[key])}</div>
+                          )}</For>
+                        ); })()
+                      : <div class="flex-1 px-1 text-slate-300 whitespace-pre-wrap break-all">{payloadToString(msg.payload)}</div>
+                    }
+                  </div>
+                );
+              }}
             </For>
           </div>
         )}

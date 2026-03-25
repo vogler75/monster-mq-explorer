@@ -36,12 +36,16 @@ export function useMessageLog() {
     liveTopics,
     recentlyUpdated,
 
-    addMessages(msgs: SerializedMessage[], selectedTopic: string | null) {
-      if (!logEnabled() || selectedTopic === null) return;
-      const prefix = selectedTopic + "/";
-      const matching = msgs.filter(
-        (m) => m.topic === selectedTopic || m.topic.startsWith(prefix)
-      );
+    addMessages(msgs: SerializedMessage[], selectedTopic: string | null, pinnedTopics?: Set<string>) {
+      if (!logEnabled()) return;
+      const prefix = selectedTopic ? selectedTopic + "/" : null;
+      const matching = msgs.filter((m) => {
+        // Always accept messages for pinned topics
+        if (pinnedTopics?.has(m.topic)) return true;
+        // Accept messages matching the selected topic prefix
+        if (!selectedTopic) return false;
+        return m.topic === selectedTopic || (prefix !== null && m.topic.startsWith(prefix));
+      });
       if (matching.length === 0) return;
 
       // Always update live topics (one row per topic)
@@ -76,9 +80,24 @@ export function useMessageLog() {
       );
     },
 
-    clearLog() {
+    /**
+     * Clear the log. Pinned topics are retained in liveTopics so they stay
+     * visible when the tree selection changes.
+     */
+    clearLog(pinnedTopics?: Set<string>) {
       setLogMessages([]);
-      setLiveTopics(reconcile({}));
+      if (!pinnedTopics || pinnedTopics.size === 0) {
+        setLiveTopics(reconcile({}));
+      } else {
+        // Keep only the pinned rows in liveTopics
+        setLiveTopics(
+          produce((live) => {
+            for (const key of Object.keys(live)) {
+              if (!pinnedTopics.has(key)) delete live[key];
+            }
+          })
+        );
+      }
     },
 
     seedLiveFromTree(node: TopicNode) {

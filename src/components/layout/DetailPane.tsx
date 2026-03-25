@@ -6,11 +6,13 @@ import MessageDetail from "../detail/MessageDetail";
 import MessageTable from "../detail/MessageTable";
 import type { LoggedMessage } from "../../stores/messageLog";
 import { useMessageLog } from "../../stores/messageLog";
+import { useWatchlist } from "../../stores/watchlist";
 
 export default function DetailPane() {
   const { selectedTopic } = useUI();
   const { topicTree } = useTopicTree();
   const { logEnabled, setLogEnabled, logMode, liveTopics, clearLog, seedLiveFromTree } = useMessageLog();
+  const { pinnedTopics } = useWatchlist();
 
   const [tableHeight, setTableHeight] = createSignal(0);
 
@@ -32,7 +34,7 @@ export default function DetailPane() {
   createEffect(on(selectedTopic, (topic) => {
     setSelectedLogMsg(null);
     setSelectedLiveTopic(null);
-    clearLog();
+    clearLog(pinnedTopics());
     if (topic && logMode() === "live") {
       const node = getNodeByTopic(topicTree, topic);
       if (node) seedLiveFromTree(node);
