@@ -20,6 +20,8 @@ export interface ConnectionConfig {
 export interface Subscription {
   topic: string;
   qos: 0 | 1 | 2;
+  /** WinCC UA: explicit list of tag names (overrides topic filter when set) */
+  tags?: string[];
 }
 
 export interface MqttMessage {

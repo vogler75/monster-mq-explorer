@@ -4,6 +4,7 @@ import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
 import type { ConnectionConfig, Subscription } from "../../types/mqtt";
 import { createDefaultConnection, createDefaultWinCCUAConnection } from "../../types/mqtt";
+import TagBrowserModal from "./TagBrowserModal";
 
 export default function ConnectionModal() {
   const { addConnection, updateConnection, getConnection } = useConnections();
@@ -28,6 +29,7 @@ export default function ConnectionModal() {
   const [clientId, setClientId] = createSignal(defaults().clientId);
   const [tagPathSplit, setTagPathSplit] = createSignal(defaults().tagPathSplit ?? "::");
   const [filterInternalTags, setFilterInternalTags] = createSignal(defaults().filterInternalTags ?? false);
+  const [showTagBrowser, setShowTagBrowser] = createSignal(false);
   const [subscriptions, setSubscriptions] = createStore<Subscription[]>([
     ...defaults().subscriptions,
   ]);
@@ -72,7 +74,7 @@ export default function ConnectionModal() {
       clientId: clientId(),
       tagPathSplit: tagPathSplit(),
       filterInternalTags: filterInternalTags(),
-      subscriptions: subscriptions.filter((s) => s.topic.trim() !== ""),
+      subscriptions: subscriptions.filter((s) => s.topic.trim() !== "" || (s.tags && s.tags.length > 0)),
     };
 
     if (isEditing()) {
@@ -256,25 +258,41 @@ export default function ConnectionModal() {
               <label class={labelClass + " mb-0"}>
                 {connectionType() === "winccua" ? "Tag Name Filters" : "Subscriptions"}
               </label>
-              <button
-                class="text-xs text-blue-400 hover:text-blue-300"
-                onClick={addSub}
-              >
-                + Add
-              </button>
+              <div class="flex gap-2">
+                <Show when={connectionType() === "winccua"}>
+                  <button
+                    class="text-xs text-slate-400 hover:text-slate-200"
+                    onClick={() => setShowTagBrowser(true)}
+                  >
+                    Browse…
+                  </button>
+                </Show>
+                <button
+                  class="text-xs text-blue-400 hover:text-blue-300"
+                  onClick={addSub}
+                >
+                  + Add
+                </button>
+              </div>
             </div>
             <div class="space-y-1.5">
               <For each={subscriptions}>
                 {(sub, index) => (
                   <div class="flex gap-2 items-center">
-                    <input
-                      class={inputBase + " min-w-0 flex-1"}
-                      placeholder={connectionType() === "winccua" ? "System1::* or *" : "topic/path/#"}
-                      value={sub.topic}
-                      onInput={(e) =>
-                        updateSub(index(), "topic", e.currentTarget.value)
-                      }
-                    />
+                    <Show when={sub.tags && sub.tags.length > 0} fallback={
+                      <input
+                        class={inputBase + " min-w-0 flex-1"}
+                        placeholder={connectionType() === "winccua" ? "System1::* or *" : "topic/path/#"}
+                        value={sub.topic}
+                        onInput={(e) =>
+                          updateSub(index(), "topic", e.currentTarget.value)
+                        }
+                      />
+                    }>
+                      <div class={inputBase + " min-w-0 flex-1 text-slate-400"}>
+                        {sub.tags!.length} specific tags
+                      </div>
+                    </Show>
                     <Show when={connectionType() === "mqtt"}>
                       <select
                         class={inputBase + " w-14 shrink-0"}
@@ -312,12 +330,23 @@ export default function ConnectionModal() {
               <Show when={subscriptions.length === 0}>
                 <div class="text-xs text-slate-500 py-1">
                   {connectionType() === "winccua"
-                    ? "No filters. Add at least one name filter to browse tags."
+                    ? "No filters. Add a name filter or browse tags."
                     : "No subscriptions. Add at least one to receive messages."}
                 </div>
               </Show>
             </div>
           </div>
+
+          <Show when={showTagBrowser()}>
+            <TagBrowserModal
+              config={{ host: host(), port: port(), protocol: protocol(), path: path(), username: username(), password: password() }}
+              onAdd={(tags) => {
+                setSubscriptions(subscriptions.length, { topic: "", qos: 0, tags });
+                setShowTagBrowser(false);
+              }}
+              onClose={() => setShowTagBrowser(false)}
+            />
+          </Show>
         </div>
 
         {/* Actions */}

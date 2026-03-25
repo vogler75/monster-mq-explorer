@@ -20,8 +20,11 @@ function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig
         .map((sub) => ({
           topic: typeof sub.topic === "string" ? sub.topic : "",
           qos: normalizeQos(sub.qos),
+          ...(Array.isArray(sub.tags) && sub.tags.length > 0
+            ? { tags: (sub.tags as unknown[]).filter((t): t is string => typeof t === "string") }
+            : {}),
         }))
-        .filter((sub) => sub.topic.trim() !== "")
+        .filter((sub) => sub.topic.trim() !== "" || (sub.tags && sub.tags.length > 0))
     : defaults.subscriptions;
 
   return {

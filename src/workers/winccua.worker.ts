@@ -151,46 +151,52 @@ async function connectToWinCCUA(config: ConnectionConfig) {
     console.log("[WinCC UA] Login OK, token obtained");
   }
 
-  // Step 2 — Browse tags via HTTP
+  // Step 2 — Collect tags: explicit lists + browse results for filter subscriptions
+  const explicitTags = config.subscriptions
+    .filter((s) => s.tags && s.tags.length > 0)
+    .flatMap((s) => s.tags!);
+
   const nameFilters = config.subscriptions
+    .filter((s) => !s.tags || s.tags.length === 0)
     .map((s) => s.topic.trim())
     .filter((t) => t.length > 0);
 
-  const browseBody = {
-    query: `query Browse($nameFilters: [String!]!) { browse(nameFilters: $nameFilters) { name } }`,
-    variables: { nameFilters },
-  };
-  console.log("[WinCC UA] Browse request →", http, browseBody);
-
-  let tagNames: string[];
-  try {
-    const result = await graphqlPost(http, browseBody, token
-    ) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
-    console.log("[WinCC UA] Browse response ←", JSON.stringify(result));
-
-    if (result.errors) {
-      self.postMessage({ type: "error", message: `Browse failed: ${JSON.stringify(result.errors)}` } as WorkerEvent);
+  let browsedTags: string[] = [];
+  if (nameFilters.length > 0) {
+    const browseBody = {
+      query: `query Browse($nameFilters: [String!]!) { browse(nameFilters: $nameFilters) { name } }`,
+      variables: { nameFilters },
+    };
+    console.log("[WinCC UA] Browse request →", http, browseBody);
+    try {
+      const result = await graphqlPost(http, browseBody, token
+      ) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
+      console.log("[WinCC UA] Browse response ←", JSON.stringify(result));
+      if (result.errors) {
+        self.postMessage({ type: "error", message: `Browse failed: ${JSON.stringify(result.errors)}` } as WorkerEvent);
+        self.postMessage({ type: "disconnected" } as WorkerEvent);
+        return;
+      }
+      browsedTags = result.data?.browse?.map((r) => r.name) ?? [];
+    } catch (err) {
+      self.postMessage({ type: "error", message: `Browse request failed: ${err}` } as WorkerEvent);
       self.postMessage({ type: "disconnected" } as WorkerEvent);
       return;
     }
-    const allResults = result.data?.browse ?? [];
-    tagNames = allResults.map((r) => r.name);
-    if (config.filterInternalTags) {
-      const before = tagNames.length;
-      tagNames = tagNames.filter((name) => !name.split("::").pop()!.startsWith("@"));
-      console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length} (filtered out ${before - tagNames.length} internal tags with @)`);
-    } else {
-      console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length}`);
-    }
-    console.log("[WinCC UA] Tags to subscribe:", tagNames);
-  } catch (err) {
-    self.postMessage({ type: "error", message: `Browse request failed: ${err}` } as WorkerEvent);
-    self.postMessage({ type: "disconnected" } as WorkerEvent);
-    return;
   }
 
+  let tagNames = [...explicitTags, ...browsedTags];
+  if (config.filterInternalTags) {
+    const before = tagNames.length;
+    tagNames = tagNames.filter((name) => !name.split("::").pop()!.startsWith("@"));
+    console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length} (filtered out ${before - tagNames.length} internal tags with @)`);
+  } else {
+    console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length}`);
+  }
+  console.log("[WinCC UA] Tags:", tagNames);
+
   if (tagNames.length === 0) {
-    self.postMessage({ type: "error", message: "No tags found matching the name filters" } as WorkerEvent);
+    self.postMessage({ type: "error", message: "No tags found" } as WorkerEvent);
     self.postMessage({ type: "disconnected" } as WorkerEvent);
     return;
   }
@@ -264,7 +270,8 @@ async function connectToWinCCUA(config: ConnectionConfig) {
               if (goodTags.length > 0) sendSubscribe(socket, goodTags);
             }
           }
-          return; // don't emit "Added" as a message value
+          if (n.error && n.error.code !== "0") return; // failed tag — don't emit
+          // successful Added: fall through to emit initial value
         }
 
         const payload = encoder.encode(
