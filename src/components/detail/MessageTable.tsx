@@ -1,10 +1,28 @@
 import { createMemo, createSignal, createEffect, For } from "solid-js";
+import { createStore } from "solid-js/store";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { useMessageLog, type LoggedMessage } from "../../stores/messageLog";
 import { useUI } from "../../stores/ui";
 import { useTopicTree } from "../../stores/topics";
 import { getNodeByTopic } from "../../lib/topic-tree";
 import { payloadToString, formatTimestamp } from "../../lib/format";
+
+function parseJsonObject(payload: Uint8Array): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(payloadToString(payload));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch { /* not JSON */ }
+  return null;
+}
+
+function formatJsonCell(v: unknown): string {
+  if (v === undefined) return "";
+  if (v === null) return "null";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
 
 interface Props {
   onSelectMessage: (msg: LoggedMessage | null) => void;
@@ -53,6 +71,26 @@ export default function MessageTable(props: Props) {
   const [colQos, setColQos] = createSignal(36);
   const [colRetain, setColRetain] = createSignal(24);
   const [payloadMultiline, setPayloadMultiline] = createSignal(false);
+  const [jsonColumnsEnabled, setJsonColumnsEnabled] = createSignal(false);
+  const [jsonColWidths, setJsonColWidths] = createStore<Record<string, number>>({});
+
+  const parsedPayloads = createMemo(() => {
+    if (!jsonColumnsEnabled()) return [] as (Record<string, unknown> | null)[];
+    return displayMessages().map((msg) => parseJsonObject(msg.payload));
+  });
+
+  const jsonKeys = createMemo(() => {
+    if (!jsonColumnsEnabled()) return [] as string[];
+    const keys: string[] = [];
+    const seen = new Set<string>();
+    for (const parsed of parsedPayloads()) {
+      if (!parsed) continue;
+      for (const k of Object.keys(parsed)) {
+        if (!seen.has(k)) { seen.add(k); keys.push(k); }
+      }
+    }
+    return keys;
+  });
   const { flashEnabled, selectedTopic } = useUI();
 
   let scrollRef!: HTMLDivElement;
@@ -232,6 +270,19 @@ export default function MessageTable(props: Props) {
             <path d="M2 3h10M2 6h10M2 9h6" />
           </svg>
         </button>
+        <button
+          class="p-0.5 rounded transition-colors"
+          classList={{
+            "text-blue-400 bg-blue-400/10": jsonColumnsEnabled(),
+            "text-slate-500 hover:text-slate-300": !jsonColumnsEnabled(),
+          }}
+          onClick={() => setJsonColumnsEnabled((v) => !v)}
+          title={jsonColumnsEnabled() ? "JSON columns on (click to disable)" : "JSON columns off (click to expand JSON keys as columns)"}
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M2 2h3v10H2M9 2h3v10H9M5 7h4" />
+          </svg>
+        </button>
         <span class="text-slate-500">{displayMessages().length} rows</span>
         {logMode() === "history" && (
           <label class="flex items-center gap-1 ml-auto">
@@ -276,7 +327,18 @@ export default function MessageTable(props: Props) {
             onMouseDown={(e) => startColResize(e, colRetain, setColRetain, 20)}
           />
         </div>
-        <div class={thBase + " flex-1"}>Payload</div>
+        {jsonColumnsEnabled()
+          ? <For each={jsonKeys()}>{(key) => (
+              <div class={thBase} style={{ width: `${jsonColWidths[key] ?? 100}px` }}>
+                {key}
+                <div
+                  class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10"
+                  onMouseDown={(e) => startColResize(e, () => jsonColWidths[key] ?? 100, (v) => setJsonColWidths(key, v), 40)}
+                />
+              </div>
+            )}</For>
+          : <div class={thBase + " flex-1"}>Payload</div>
+        }
       </div>
 
       {/* Table body */}
@@ -306,7 +368,13 @@ export default function MessageTable(props: Props) {
                       <div class={tdBase + " text-slate-300"} style={{ width: `${colTopic()}px` }}>{msg() ? trimTopic(msg()!.topic) : ""}</div>
                       <div class={tdBase + " text-center text-slate-500"} style={{ width: `${colQos()}px` }}>{msg()?.qos ?? ""}</div>
                       <div class={tdBase + " text-center text-amber-500"} style={{ width: `${colRetain()}px` }}>{msg()?.retain ? "R" : ""}</div>
-                      <div class="flex-1 px-1 truncate text-slate-300">{msg() ? payloadToString(msg()!.payload) : ""}</div>
+                      {jsonColumnsEnabled()
+                        ? <For each={jsonKeys()}>{(key) => {
+                            const val = () => parsedPayloads()[vRow.index]?.[key];
+                            return <div class={tdBase + " text-slate-300"} style={{ width: `${jsonColWidths[key] ?? 100}px` }}>{formatJsonCell(val())}</div>;
+                          }}</For>
+                        : <div class="flex-1 px-1 truncate text-slate-300">{msg() ? payloadToString(msg()!.payload) : ""}</div>
+                      }
                     </div>
                   );
                 }}
@@ -332,7 +400,14 @@ export default function MessageTable(props: Props) {
                   <div class="shrink-0 px-1 text-slate-300 truncate pt-0.5" style={{ width: `${colTopic()}px` }}>{trimTopic(msg.topic)}</div>
                   <div class="shrink-0 px-1 text-center text-slate-500 pt-0.5" style={{ width: `${colQos()}px` }}>{msg.qos}</div>
                   <div class="shrink-0 px-1 text-center text-amber-500 pt-0.5" style={{ width: `${colRetain()}px` }}>{msg.retain ? "R" : ""}</div>
-                  <div class="flex-1 px-1 text-slate-300 whitespace-pre-wrap break-all">{payloadToString(msg.payload)}</div>
+                  {jsonColumnsEnabled()
+                    ? (() => { const parsed = parseJsonObject(msg.payload); return (
+                        <For each={jsonKeys()}>{(key) => (
+                          <div class="shrink-0 px-1 text-slate-300 truncate pt-0.5" style={{ width: `${jsonColWidths[key] ?? 100}px` }}>{formatJsonCell(parsed?.[key])}</div>
+                        )}</For>
+                      ); })()
+                    : <div class="flex-1 px-1 text-slate-300 whitespace-pre-wrap break-all">{payloadToString(msg.payload)}</div>
+                  }
                 </div>
               )}
             </For>
