@@ -19,12 +19,13 @@ const workers = new Map<string, Worker>();
 function getOrCreateWorker(connectionId: string, type: "mqtt" | "winccua" | "winccoa"): Worker {
   let w = workers.get(connectionId);
   if (!w) {
-    const url = type === "winccua"
-      ? new URL("./workers/winccua.worker.ts", import.meta.url)
-      : type === "winccoa"
-        ? new URL("./workers/winccoa.worker.ts", import.meta.url)
-        : new URL("./workers/mqtt.worker.ts", import.meta.url);
-    w = new Worker(url, { type: "module" });
+    if (type === "winccua") {
+      w = new Worker(new URL("./workers/winccua.worker.ts", import.meta.url), { type: "module" });
+    } else if (type === "winccoa") {
+      w = new Worker(new URL("./workers/winccoa.worker.ts", import.meta.url), { type: "module" });
+    } else {
+      w = new Worker(new URL("./workers/mqtt.worker.ts", import.meta.url), { type: "module" });
+    }
     workers.set(connectionId, w);
   }
   return w;
