@@ -3,8 +3,9 @@ import { createStore } from "solid-js/store";
 import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
 import type { ConnectionConfig, Subscription } from "../../types/mqtt";
-import { createDefaultConnection, createDefaultWinCCUAConnection } from "../../types/mqtt";
+import { createDefaultConnection, createDefaultWinCCUAConnection, createDefaultWinCCOAConnection } from "../../types/mqtt";
 import TagBrowserModal from "./TagBrowserModal";
+import { loginAndBrowse as winccoaBrowse } from "../../lib/winccoa-api";
 
 export default function ConnectionModal() {
   const { addConnection, updateConnection, getConnection } = useConnections();
@@ -16,7 +17,7 @@ export default function ConnectionModal() {
 
   const defaults = () => existing() ?? createDefaultConnection();
 
-  const [connectionType, setConnectionType] = createSignal<"mqtt" | "winccua">(
+  const [connectionType, setConnectionType] = createSignal<"mqtt" | "winccua" | "winccoa">(
     defaults().connectionType ?? "mqtt"
   );
   const [name, setName] = createSignal(defaults().name);
@@ -34,9 +35,13 @@ export default function ConnectionModal() {
     ...defaults().subscriptions,
   ]);
 
-  function switchType(type: "mqtt" | "winccua") {
+  function switchType(type: "mqtt" | "winccua" | "winccoa") {
     if (isEditing()) return; // don't switch type when editing
-    const template = type === "winccua" ? createDefaultWinCCUAConnection() : createDefaultConnection();
+    const template = type === "winccua"
+      ? createDefaultWinCCUAConnection()
+      : type === "winccoa"
+        ? createDefaultWinCCOAConnection()
+        : createDefaultConnection();
     setConnectionType(type);
     setPort(template.port);
     setPath(template.path);
@@ -44,7 +49,11 @@ export default function ConnectionModal() {
     setTagPathSplit(template.tagPathSplit ?? "::");
     setFilterInternalTags(template.filterInternalTags ?? false);
     setSubscriptions([...template.subscriptions] as Subscription[]);
-    if (name() === createDefaultConnection().name || name() === createDefaultWinCCUAConnection().name) {
+    if (
+      name() === createDefaultConnection().name ||
+      name() === createDefaultWinCCUAConnection().name ||
+      name() === createDefaultWinCCOAConnection().name
+    ) {
       setName(template.name);
     }
   }
@@ -135,6 +144,17 @@ export default function ConnectionModal() {
               >
                 WinCC Unified
               </button>
+              <button
+                class={`flex-1 py-1.5 text-xs rounded transition-colors ${
+                  connectionType() === "winccoa"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-700 text-slate-400 hover:text-slate-200"
+                }`}
+                onClick={() => switchType("winccoa")}
+                disabled={isEditing()}
+              >
+                WinCC OA
+              </button>
             </div>
           </div>
 
@@ -185,7 +205,7 @@ export default function ConnectionModal() {
           {/* Path */}
           <div>
             <label class={labelClass}>
-              {connectionType() === "winccua" ? "GraphQL Path" : "WebSocket Path"}
+              {connectionType() !== "mqtt" ? "GraphQL Path" : "WebSocket Path"}
             </label>
             <input
               class={inputClass}
@@ -227,8 +247,8 @@ export default function ConnectionModal() {
             </div>
           </Show>
 
-          {/* Tag path splitting — WinCC UA only */}
-          <Show when={connectionType() === "winccua"}>
+          {/* Tag path splitting — WinCC UA / OA only */}
+          <Show when={connectionType() === "winccua" || connectionType() === "winccoa"}>
             <div>
               <label class={labelClass}>Replace with / (comma-separated)</label>
               <input
@@ -248,7 +268,7 @@ export default function ConnectionModal() {
                 checked={filterInternalTags()}
                 onChange={(e) => setFilterInternalTags(e.currentTarget.checked)}
               />
-              <span class="text-xs text-slate-400">Filter out internal tags (starting with <code class="text-slate-300">@</code>)</span>
+              <span class="text-xs text-slate-400">Filter out internal tags (starting with <code class="text-slate-300">{connectionType() === "winccoa" ? "_" : "@"}</code>)</span>
             </label>
           </Show>
 
@@ -256,10 +276,10 @@ export default function ConnectionModal() {
           <div>
             <div class="flex items-center justify-between mb-1">
               <label class={labelClass + " mb-0"}>
-                {connectionType() === "winccua" ? "Tag Name Filters" : "Subscriptions"}
+                {connectionType() !== "mqtt" ? "Tag Name Filters" : "Subscriptions"}
               </label>
               <div class="flex gap-2">
-                <Show when={connectionType() === "winccua"}>
+                <Show when={connectionType() !== "mqtt"}>
                   <button
                     class="text-xs text-slate-400 hover:text-slate-200"
                     onClick={() => setShowTagBrowser(true)}
@@ -282,7 +302,7 @@ export default function ConnectionModal() {
                     <Show when={sub.tags && sub.tags.length > 0} fallback={
                       <input
                         class={inputBase + " min-w-0 flex-1"}
-                        placeholder={connectionType() === "winccua" ? "System1::* or *" : "topic/path/#"}
+                        placeholder={connectionType() !== "mqtt" ? "System1::* or *" : "topic/path/#"}
                         value={sub.topic}
                         onInput={(e) =>
                           updateSub(index(), "topic", e.currentTarget.value)
@@ -329,7 +349,7 @@ export default function ConnectionModal() {
               </For>
               <Show when={subscriptions.length === 0}>
                 <div class="text-xs text-slate-500 py-1">
-                  {connectionType() === "winccua"
+                  {connectionType() !== "mqtt"
                     ? "No filters. Add a name filter or browse tags."
                     : "No subscriptions. Add at least one to receive messages."}
                 </div>
@@ -340,6 +360,7 @@ export default function ConnectionModal() {
           <Show when={showTagBrowser()}>
             <TagBrowserModal
               config={{ host: host(), port: port(), protocol: protocol(), path: path(), username: username(), password: password() }}
+              browseFn={connectionType() === "winccoa" ? winccoaBrowse : undefined}
               onAdd={(tags) => {
                 setSubscriptions(subscriptions.length, { topic: "", qos: 0, tags });
                 setShowTagBrowser(false);

@@ -66,9 +66,7 @@ function wsUrl(config: ConnectionConfig): string {
 }
 
 function wsSend(socket: WebSocket, msg: object) {
-  const text = JSON.stringify(msg);
-  console.log("[WinCC UA] WS send →", text);
-  socket.send(text);
+  socket.send(JSON.stringify(msg));
 }
 
 function buildQuery(tags: string[]): string {
@@ -234,7 +232,7 @@ async function connectToWinCCUA(config: ConnectionConfig) {
       console.warn("[WinCC UA] WS unparseable message:", event.data);
       return;
     }
-    console.log("[WinCC UA] WS recv ←", JSON.stringify(msg));
+
 
     switch (msg.type) {
       case "connection_ack":

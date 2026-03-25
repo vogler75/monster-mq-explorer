@@ -5,6 +5,7 @@ interface Props {
   config: BrowseConfig;
   onAdd: (tags: string[]) => void;
   onClose: () => void;
+  browseFn?: (config: BrowseConfig, filters: string[]) => Promise<string[]>;
 }
 
 export default function TagBrowserModal(props: Props) {
@@ -18,7 +19,8 @@ export default function TagBrowserModal(props: Props) {
     setLoading(true);
     setError(null);
     try {
-      const result = await loginAndBrowse(props.config, [filter()]);
+      const browse = props.browseFn ?? loginAndBrowse;
+      const result = await browse(props.config, [filter()]);
       setTags(result);
       setSelected(new Set());
     } catch (err) {

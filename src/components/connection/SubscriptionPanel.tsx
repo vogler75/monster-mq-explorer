@@ -3,6 +3,7 @@ import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
 import type { Subscription } from "../../types/mqtt";
 import TagBrowserModal from "./TagBrowserModal";
+import { loginAndBrowse as winccoaBrowse } from "../../lib/winccoa-api";
 
 export default function SubscriptionModal() {
   const { connections, activeConnectionId, addSubscription, removeSubscriptionAt, updateSubscription } =
@@ -12,7 +13,7 @@ export default function SubscriptionModal() {
 
   const activeConn = () => connections.find((c) => c.id === activeConnectionId());
   const subs = () => activeConn()?.subscriptions ?? [];
-  const isWinCC = () => activeConn()?.connectionType === "winccua";
+  const isWinCC = () => activeConn()?.connectionType !== "mqtt";
 
   const [newTopic, setNewTopic] = createSignal("");
   const [newQos, setNewQos] = createSignal<0 | 1 | 2>(0);
@@ -165,6 +166,7 @@ export default function SubscriptionModal() {
             username: activeConn()!.username,
             password: activeConn()!.password,
           }}
+          browseFn={activeConn()?.connectionType === "winccoa" ? winccoaBrowse : undefined}
           onAdd={(tags) => {
             addSubscription(activeConnectionId()!, { topic: "", qos: 0, tags });
             setShowTagBrowser(false);

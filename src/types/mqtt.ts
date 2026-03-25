@@ -1,7 +1,7 @@
 export interface ConnectionConfig {
   id: string;
   name: string;
-  connectionType: "mqtt" | "winccua";
+  connectionType: "mqtt" | "winccua" | "winccoa";
   host: string;
   port: number;
   protocol: "ws" | "wss";
@@ -62,6 +62,24 @@ export function createDefaultConnection(): ConnectionConfig {
     password: "",
     clientId: `monster-mqtt-${Math.random().toString(36).slice(2, 8)}`,
     subscriptions: [{ topic: "#", qos: 0 }],
+    tagPathSplit: "",
+    filterInternalTags: false,
+  };
+}
+
+export function createDefaultWinCCOAConnection(): ConnectionConfig {
+  return {
+    id: crypto.randomUUID(),
+    name: "New WinCC OA Connection",
+    connectionType: "winccoa",
+    host: "localhost",
+    port: 443,
+    protocol: "wss",
+    path: "/graphql",
+    username: "",
+    password: "",
+    clientId: "",
+    subscriptions: [{ topic: "*", qos: 0 }],
     tagPathSplit: "",
     filterInternalTags: false,
   };
