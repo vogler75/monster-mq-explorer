@@ -177,7 +177,7 @@ async function connectToWinCCUA(config: ConnectionConfig) {
     tagNames = allResults.map((r) => r.name);
     if (config.filterInternalTags) {
       const before = tagNames.length;
-      tagNames = tagNames.filter((name) => !name.startsWith("@"));
+      tagNames = tagNames.filter((name) => !name.split("::").pop()!.startsWith("@"));
       console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length} (filtered out ${before - tagNames.length} internal tags with @)`);
     } else {
       console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length}`);
