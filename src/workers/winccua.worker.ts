@@ -123,7 +123,8 @@ async function connectToWinCCUA(config: ConnectionConfig) {
   let token: string | undefined;
   if (config.username) {
     const loginBody = {
-      query: `mutation { login(username: "${config.username}", password: "${config.password}") { token } }`,
+      query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
+      variables: { username: config.username, password: config.password },
     };
     console.log("[WinCC UA] Login request →", http, loginBody);
     let result: { data?: { login?: { token?: string } }; errors?: unknown[] };
@@ -155,13 +156,16 @@ async function connectToWinCCUA(config: ConnectionConfig) {
     .map((s) => s.topic.trim())
     .filter((t) => t.length > 0);
 
-  const browseBody = { query: `{ browse(nameFilters: ${JSON.stringify(nameFilters)}) { name objectType } }` };
+  const browseBody = {
+    query: `query Browse($nameFilters: [String!]!) { browse(nameFilters: $nameFilters) { name } }`,
+    variables: { nameFilters },
+  };
   console.log("[WinCC UA] Browse request →", http, browseBody);
 
   let tagNames: string[];
   try {
     const result = await graphqlPost(http, browseBody, token
-    ) as { data?: { browse?: { name: string; objectType: string }[] }; errors?: unknown[] };
+    ) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
     console.log("[WinCC UA] Browse response ←", JSON.stringify(result));
 
     if (result.errors) {
@@ -170,12 +174,14 @@ async function connectToWinCCUA(config: ConnectionConfig) {
       return;
     }
     const allResults = result.data?.browse ?? [];
-    const allTagNames = allResults
-      .filter((r) => r.objectType?.toUpperCase().includes("TAG"))
-      .map((r) => r.name);
-    tagNames = allTagNames.filter((name) => !name.includes("@"));
-    const skipped = allTagNames.length - tagNames.length;
-    console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length} (skipped ${skipped} internal tags with @)`);
+    tagNames = allResults.map((r) => r.name);
+    if (config.filterInternalTags) {
+      const before = tagNames.length;
+      tagNames = tagNames.filter((name) => !name.startsWith("@"));
+      console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length} (filtered out ${before - tagNames.length} internal tags with @)`);
+    } else {
+      console.log(`[WinCC UA] Tags to subscribe: ${tagNames.length}`);
+    }
     console.log("[WinCC UA] Tags to subscribe:", tagNames);
   } catch (err) {
     self.postMessage({ type: "error", message: `Browse request failed: ${err}` } as WorkerEvent);

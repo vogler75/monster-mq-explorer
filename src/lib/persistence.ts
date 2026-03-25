@@ -39,6 +39,7 @@ function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig
       : defaults.clientId,
     subscriptions,
     tagPathSplit: typeof input.tagPathSplit === "string" ? input.tagPathSplit : "",
+    filterInternalTags: typeof input.filterInternalTags === "boolean" ? input.filterInternalTags : false,
   };
 }
 

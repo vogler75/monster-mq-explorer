@@ -13,6 +13,8 @@ export interface ConnectionConfig {
   /** WinCC UA: comma-separated list of substrings that are replaced with '/' when
    *  converting a tag name to a topic path. E.g. "::" or "::, ." */
   tagPathSplit: string;
+  /** WinCC UA: filter out tags whose name contains "@" (internal/system tags) */
+  filterInternalTags: boolean;
 }
 
 export interface Subscription {
@@ -59,6 +61,7 @@ export function createDefaultConnection(): ConnectionConfig {
     clientId: `monster-mqtt-${Math.random().toString(36).slice(2, 8)}`,
     subscriptions: [{ topic: "#", qos: 0 }],
     tagPathSplit: "",
+    filterInternalTags: false,
   };
 }
 
@@ -76,5 +79,6 @@ export function createDefaultWinCCUAConnection(): ConnectionConfig {
     clientId: "",
     subscriptions: [{ topic: "*", qos: 0 }],
     tagPathSplit: "",
+    filterInternalTags: true,
   };
 }

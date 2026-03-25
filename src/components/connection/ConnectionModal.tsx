@@ -27,6 +27,7 @@ export default function ConnectionModal() {
   const [password, setPassword] = createSignal(defaults().password);
   const [clientId, setClientId] = createSignal(defaults().clientId);
   const [tagPathSplit, setTagPathSplit] = createSignal(defaults().tagPathSplit ?? "::");
+  const [filterInternalTags, setFilterInternalTags] = createSignal(defaults().filterInternalTags ?? false);
   const [subscriptions, setSubscriptions] = createStore<Subscription[]>([
     ...defaults().subscriptions,
   ]);
@@ -39,6 +40,7 @@ export default function ConnectionModal() {
     setPath(template.path);
     setClientId(template.clientId);
     setTagPathSplit(template.tagPathSplit ?? "::");
+    setFilterInternalTags(template.filterInternalTags ?? false);
     setSubscriptions([...template.subscriptions] as Subscription[]);
     if (name() === createDefaultConnection().name || name() === createDefaultWinCCUAConnection().name) {
       setName(template.name);
@@ -69,6 +71,7 @@ export default function ConnectionModal() {
       password: password(),
       clientId: clientId(),
       tagPathSplit: tagPathSplit(),
+      filterInternalTags: filterInternalTags(),
       subscriptions: subscriptions.filter((s) => s.topic.trim() !== ""),
     };
 
@@ -236,6 +239,15 @@ export default function ConnectionModal() {
                 <code class="text-slate-400">::</code> is always replaced. Add <code class="text-slate-400">.</code> to also split on element hierarchy.
               </span>
             </div>
+            <label class="flex items-center gap-2 cursor-pointer mt-1">
+              <input
+                type="checkbox"
+                class="accent-blue-500"
+                checked={filterInternalTags()}
+                onChange={(e) => setFilterInternalTags(e.currentTarget.checked)}
+              />
+              <span class="text-xs text-slate-400">Filter out internal tags (starting with <code class="text-slate-300">@</code>)</span>
+            </label>
           </Show>
 
           {/* Subscriptions / Tag Filters */}
