@@ -1,6 +1,6 @@
 {
   "name": "monster-mqtt-explorer",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "High-performance MQTT client with topic tree visualization",
   "type": "module",
   "main": "electron/main.cjs",
@@ -16,8 +16,8 @@
     "test": "vitest"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Andreas Vogler",
+  "license": "MIT",
   "dependencies": {
     "@tanstack/solid-virtual": "^3.13.23",
     "idb-keyval": "^6.2.2",
@@ -47,7 +47,7 @@
   "build": {
     "appId": "com.monstermqtt.explorer",
     "productName": "Monster MQTT Explorer",
-    "copyright": "Copyright © 2025",
+    "copyright": "Copyright © 2026 Andreas Vogler",
     "directories": {
       "buildResources": "public",
       "output": "release"

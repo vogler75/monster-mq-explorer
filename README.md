@@ -108,4 +108,4 @@ See [CLAUDE.md](CLAUDE.md) for a detailed architecture overview.
 
 ## License
 
-ISC
+MIT © 2026 Andreas Vogler
