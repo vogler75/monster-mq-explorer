@@ -45,9 +45,9 @@ if $DO_UPLOAD; then
   VERSION=$(node -p "require('./package.json').version")
   TAG="v${VERSION}"
 
-  DMG=$(ls release/*.dmg 2>/dev/null | head -1)
+  DMG=$(ls release/*"${VERSION}"*.dmg 2>/dev/null | grep -v blockmap | head -1)
   if [ -z "$DMG" ]; then
-    echo "ERROR: No .dmg found in release/. Run with -b first."
+    echo "ERROR: No .dmg found in release/ for version ${VERSION}. Run with -b first."
     exit 1
   fi
 

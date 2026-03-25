@@ -60,6 +60,7 @@
     "mac": {
       "icon": "public/icons/icon-512.png",
       "category": "public.app-category.developer-tools",
+      "artifactName": "${productName}.${ext}",
       "target": [
         {
           "target": "dmg",
@@ -72,6 +73,7 @@
     },
     "win": {
       "icon": "public/icons/icon-512.png",
+      "artifactName": "${productName} Setup.${ext}",
       "target": [
         {
           "target": "nsis",

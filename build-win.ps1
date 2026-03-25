@@ -36,7 +36,7 @@ if ($u) {
   $version = node -p "require('./package.json').version"
   $tag = "v$version"
 
-  $exe = Get-ChildItem release\*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+  $exe = Get-ChildItem release\*$version*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
   if (-not $exe) {
     Write-Host "ERROR: No .exe found in release\. Run with -b first." -ForegroundColor Red
     Pop-Location; exit 1
