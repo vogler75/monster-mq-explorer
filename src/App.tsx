@@ -1,4 +1,4 @@
-import { createMemo, createSignal, onCleanup, Show } from "solid-js";
+import { batch, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import { unwrap } from "solid-js/store";
 import type { WorkerCommand } from "./workers/mqtt.protocol";
 import type { WorkerEvent } from "./workers/mqtt.protocol";
@@ -78,19 +78,22 @@ export default function App() {
           break;
         case "messages": {
           const config = getConnection(connectionId);
-          const batch = config?.connectionType === "mqtt"
+          const msgs = config?.connectionType === "mqtt"
             ? event.batch.map((m) => ({ ...m, topic: `${config.name}/${m.topic}` }))
             : event.batch;
-          const newTopics = processBatch(batch);
-          addMessages(batch, selectedTopic(), pinnedTopics());
-          if (chartActive()) {
-            for (const m of batch) {
-              pushMessage(m.topic, m.payload, m.timestamp);
+          // Single batch so tree update + expand are applied atomically
+          batch(() => {
+            const newTopics = processBatch(msgs);
+            addMessages(msgs, selectedTopic(), pinnedTopics());
+            if (chartActive()) {
+              for (const m of msgs) {
+                pushMessage(m.topic, m.payload, m.timestamp);
+              }
             }
-          }
-          if (autoExpand() && newTopics.length > 0) {
-            expandTopics(newTopics);
-          }
+            if (autoExpand() && newTopics.length > 0) {
+              expandTopics(newTopics);
+            }
+          });
           break;
         }
         case "subscribed":

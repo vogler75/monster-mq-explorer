@@ -1,4 +1,4 @@
-import { createSignal, batch } from "solid-js";
+import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import type { TopicNode, MqttMessage } from "../types/mqtt";
 import type { SerializedMessage } from "../workers/mqtt.protocol";
@@ -30,38 +30,36 @@ export function useTopicTree() {
 
     processBatch(messages: SerializedMessage[]): string[] {
       const newTopics: string[] = [];
-      batch(() => {
-        setTopicTree(
-          produce((root) => {
-            for (const msg of messages) {
-              const segments = msg.topic.split("/");
-              let current = root;
+      setTopicTree(
+        produce((root) => {
+          for (const msg of messages) {
+            const segments = msg.topic.split("/");
+            let current = root;
 
-              for (let i = 0; i < segments.length; i++) {
-                const segment = segments[i];
-                if (!current.children[segment]) {
-                  const fullTopic = segments.slice(0, i + 1).join("/");
-                  current.children[segment] = {
-                    segment,
-                    fullTopic,
-                    children: {},
-                    messageCount: 0,
-                    lastMessage: null,
-                    lastUpdated: 0,
-                  };
-                  newTopics.push(fullTopic);
-                }
-                current = current.children[segment];
+            for (let i = 0; i < segments.length; i++) {
+              const segment = segments[i];
+              if (!current.children[segment]) {
+                const fullTopic = segments.slice(0, i + 1).join("/");
+                current.children[segment] = {
+                  segment,
+                  fullTopic,
+                  children: {},
+                  messageCount: 0,
+                  lastMessage: null,
+                  lastUpdated: 0,
+                };
+                newTopics.push(fullTopic);
               }
-
-              current.messageCount++;
-              current.lastMessage = msg as MqttMessage;
-              current.lastUpdated = msg.timestamp;
+              current = current.children[segment];
             }
-          })
-        );
-        setTotalMessages((n) => n + messages.length);
-      });
+
+            current.messageCount++;
+            current.lastMessage = msg as MqttMessage;
+            current.lastUpdated = msg.timestamp;
+          }
+        })
+      );
+      setTotalMessages((n) => n + messages.length);
       msgCountWindow += messages.length;
       updateRate();
       return newTopics;
