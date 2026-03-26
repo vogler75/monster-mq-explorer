@@ -45,6 +45,7 @@ export default function TopicTree() {
           class="flex-1 min-w-0 px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded text-slate-200 placeholder-slate-500 outline-none focus:border-blue-500"
           onInput={(e) => setFilter(e.currentTarget.value)}
         />
+        {/* Group 1: Tree display */}
         <button
           class="p-1 rounded shrink-0 transition-colors"
           classList={{
@@ -61,73 +62,6 @@ export default function TopicTree() {
         <button
           class="p-1 rounded shrink-0 transition-colors"
           classList={{
-            "text-blue-400 bg-blue-400/10": autoExpand(),
-            "text-slate-500 hover:text-slate-300": !autoExpand(),
-          }}
-          onClick={toggleAutoExpand}
-          title={autoExpand() ? "Auto-expand on (click to disable)" : "Auto-expand off"}
-        >
-          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M7 2v10M2 7h10" />
-          </svg>
-        </button>
-        <button
-          class="p-1 rounded shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
-          onClick={() => {
-            const sel = selectedTopic();
-            if (sel) {
-              const node = getNodeByTopic(topicTree, sel);
-              if (node) {
-                const paths = collectAllNodePaths(node);
-                expandAll([...expandedNodes(), ...paths, sel]);
-              }
-            } else {
-              expandAll(collectAllNodePaths(topicTree));
-            }
-          }}
-          title={selectedTopic() ? "Expand selected node" : "Expand all"}
-        >
-          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M2 4h10M2 7h7M2 10h4" />
-            <path d="M11 8l2 2-2 2" />
-          </svg>
-        </button>
-        <button
-          class="p-1 rounded shrink-0 transition-colors"
-          classList={{
-            "text-slate-500 hover:text-slate-300 cursor-not-allowed opacity-50": !selectedTopic(),
-            "text-slate-400 hover:text-slate-200": selectedTopic(),
-          }}
-          disabled={!selectedTopic()}
-          onClick={() => {
-            if (selectedTopic()) {
-              clearSubtree(selectedTopic()!);
-              setSelectedTopic(null);
-            }
-          }}
-          title={selectedTopic() ? "Clear selected node and children" : "Select a node to clear"}
-        >
-          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4M5 6v4M9 6v4" />
-          </svg>
-        </button>
-        <button
-          class="p-1 rounded shrink-0 transition-colors"
-          classList={{
-            "text-slate-500 hover:text-slate-300 cursor-not-allowed opacity-50": !selectedTopic(),
-            "text-slate-400 hover:text-slate-200": !!selectedTopic(),
-          }}
-          disabled={!selectedTopic()}
-          onClick={() => setSelectedTopic(null)}
-          title="Deselect topic"
-        >
-          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M4 4l6 6M10 4l-6 6" />
-          </svg>
-        </button>
-        <button
-          class="p-1 rounded shrink-0 transition-colors"
-          classList={{
             "text-blue-400 bg-blue-400/10": showRetainedOnly(),
             "text-slate-500 hover:text-slate-300": !showRetainedOnly(),
           }}
@@ -138,6 +72,81 @@ export default function TopicTree() {
             <path d="M2 7l2 2 4-4M12 7a5 5 0 1 0-10 0 5 5 0 0 0 10 0" />
           </svg>
         </button>
+
+        {/* Group 2: Expand/collapse */}
+        <div class="border-l border-slate-600 pl-1.5 ml-0.5 flex items-center gap-1.5">
+          <button
+            class="p-1 rounded shrink-0 transition-colors"
+            classList={{
+              "text-blue-400 bg-blue-400/10": autoExpand(),
+              "text-slate-500 hover:text-slate-300": !autoExpand(),
+            }}
+            onClick={toggleAutoExpand}
+            title={autoExpand() ? "Auto-expand on (click to disable)" : "Auto-expand off"}
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M7 2v10M2 7h10" />
+            </svg>
+          </button>
+          <button
+            class="p-1 rounded shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
+            onClick={() => {
+              const sel = selectedTopic();
+              if (sel) {
+                const node = getNodeByTopic(topicTree, sel);
+                if (node) {
+                  const paths = collectAllNodePaths(node);
+                  expandAll([...expandedNodes(), ...paths, sel]);
+                }
+              } else {
+                expandAll(collectAllNodePaths(topicTree));
+              }
+            }}
+            title={selectedTopic() ? "Expand selected node" : "Expand all"}
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 4h10M2 7h7M2 10h4" />
+              <path d="M11 8l2 2-2 2" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Group 3: Selection actions */}
+        <div class="border-l border-slate-600 pl-1.5 ml-0.5 flex items-center gap-1.5">
+          <button
+            class="p-1 rounded shrink-0 transition-colors"
+            classList={{
+              "text-slate-500 hover:text-slate-300 cursor-not-allowed opacity-50": !selectedTopic(),
+              "text-slate-400 hover:text-slate-200": !!selectedTopic(),
+            }}
+            disabled={!selectedTopic()}
+            onClick={() => setSelectedTopic(null)}
+            title="Deselect topic"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M4 4l6 6M10 4l-6 6" />
+            </svg>
+          </button>
+          <button
+            class="p-1 rounded shrink-0 transition-colors"
+            classList={{
+              "text-slate-500 hover:text-slate-300 cursor-not-allowed opacity-50": !selectedTopic(),
+              "text-slate-400 hover:text-slate-200": selectedTopic(),
+            }}
+            disabled={!selectedTopic()}
+            onClick={() => {
+              if (selectedTopic()) {
+                clearSubtree(selectedTopic()!);
+                setSelectedTopic(null);
+              }
+            }}
+            title={selectedTopic() ? "Clear selected node and children" : "Select a node to clear"}
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4M5 6v4M9 6v4" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Virtualized tree */}
