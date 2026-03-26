@@ -4,7 +4,7 @@ import "uplot/dist/uPlot.min.css";
 import { useWatchlist } from "../../stores/watchlist";
 import { useChartData } from "../../stores/chartData";
 import { useMessageLog } from "../../stores/messageLog";
-import { collectJsonPaths } from "../../lib/jsonPath";
+import { collectJsonPaths, extractValue } from "../../lib/jsonPath";
 import type { PathConfig } from "../../lib/jsonPath";
 
 /**
@@ -45,6 +45,7 @@ interface TopicConfigPillProps {
   topic: string;
   label: string;
   color: string;
+  hasError: boolean;
   config: PathConfig;
   onConfigChange: (newConfig: PathConfig) => void;
   suggestedPaths: string[];
@@ -61,25 +62,31 @@ function TopicConfigPill(props: TopicConfigPillProps) {
 
   const topicLabel = () => props.label || props.topic;
 
+  function updateSuggestions(filter: string) {
+    const filtered = filter
+      ? props.suggestedPaths.filter((p) => p.toLowerCase().includes(filter.toLowerCase()))
+      : props.suggestedPaths;
+    setFilteredPaths(filtered);
+    setShowSuggestions(filtered.length > 0);
+  }
+
   function handleModeChange(newMode: "raw" | "path") {
     setMode(newMode);
     props.onConfigChange({ mode: newMode, path: newMode === "raw" ? "" : path() });
+    if (newMode === "path") {
+      updateSuggestions(path());
+    }
   }
 
   function handlePathChange(newPath: string) {
     setPath(newPath);
     props.onConfigChange({ mode: "path", path: newPath });
-
-    // Filter suggestions
-    const filtered = props.suggestedPaths.filter((p) =>
-      p.toLowerCase().includes(newPath.toLowerCase())
-    );
-    setFilteredPaths(filtered);
-    setShowSuggestions(filtered.length > 0);
+    updateSuggestions(newPath);
   }
 
   function selectSuggestion(suggestion: string) {
-    handlePathChange(suggestion);
+    setPath(suggestion);
+    props.onConfigChange({ mode: "path", path: suggestion });
     setShowSuggestions(false);
   }
 
@@ -103,6 +110,9 @@ function TopicConfigPill(props: TopicConfigPillProps) {
       >
         <span class="inline-block w-3 h-2 rounded-sm flex-shrink-0" style={{ "background-color": props.color }} />
         {topicLabel()}
+        {props.hasError && (
+          <span class="text-amber-400 flex-shrink-0" title="Cannot convert payload to number — configure JSON path">&#x26A0;</span>
+        )}
       </button>
 
       <Show when={showPopover()}>
@@ -196,6 +206,14 @@ export default function ChartPane() {
     } catch {
       return [];
     }
+  };
+
+  // Check if the current config can extract a numeric value from the latest payload
+  const topicHasError = (topic: string): boolean => {
+    const msg = liveTopics[topic];
+    if (!msg) return false; // no message yet, not an error
+    const config = getTopicConfig(topic);
+    return extractValue(msg.payload, config) === null;
   };
 
   // Build uplot options for dark theme
@@ -331,6 +349,7 @@ export default function ChartPane() {
                 topic={topic}
                 label={labels().get(topic) || topic}
                 color={SERIES_COLORS[i % SERIES_COLORS.length]}
+                hasError={topicHasError(topic)}
                 config={getTopicConfig(topic)}
                 onConfigChange={(newConfig) => {
                   updateTopicConfig(topic, newConfig);
