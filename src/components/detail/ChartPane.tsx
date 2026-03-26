@@ -1,5 +1,6 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import uPlot from "uplot";
+import "uplot/dist/uPlot.min.css";
 import { useWatchlist } from "../../stores/watchlist";
 import { useChartData } from "../../stores/chartData";
 import { useMessageLog } from "../../stores/messageLog";
@@ -236,18 +237,22 @@ export default function ChartPane() {
 
   onMount(() => {
     if (!containerRef) return;
-    const topics = pinnedList();
-    const opts = buildOpts(topics, containerRef);
-    const data = buildData(topics);
-    uplotInstance = new uPlot(opts, data, containerRef);
 
-    // Resize observer
+    // Defer initial creation so the container has its final layout dimensions
+    requestAnimationFrame(() => {
+      const topics = pinnedList();
+      const opts = buildOpts(topics, containerRef);
+      const data = buildData(topics);
+      uplotInstance = new uPlot(opts, data, containerRef);
+    });
+
+    // Resize observer — keeps canvas matched to container size
     const ro = new ResizeObserver(([entry]) => {
-      if (!uplotInstance || !entry.contentRect.width) return;
-      uplotInstance.setSize({
-        width: entry.contentRect.width,
-        height: entry.contentRect.height,
-      });
+      if (!uplotInstance) return;
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) {
+        uplotInstance.setSize({ width: Math.floor(width), height: Math.floor(height) });
+      }
     });
     ro.observe(containerRef);
 
@@ -334,16 +339,15 @@ export default function ChartPane() {
         </Show>
       </div>
 
-      {/* Chart container */}
-      <div class="flex-1 overflow-hidden bg-slate-850">
+      {/* Chart container — relative wrapper so the canvas + overlay stack correctly */}
+      <div class="flex-1 relative min-h-0" style={{ "background-color": "rgb(10, 15, 30)" }}>
         <div
           ref={containerRef}
-          class="w-full h-full"
-          style={{ "background-color": "rgb(10, 15, 30)" }}
+          class="absolute inset-0"
         />
 
         <Show when={!hasData()}>
-          <div class="absolute inset-0 flex items-center justify-center text-slate-500 text-sm pointer-events-none">
+          <div class="absolute inset-0 flex items-center justify-center text-slate-500 text-sm pointer-events-none z-10">
             Waiting for data...
           </div>
         </Show>

@@ -20,6 +20,25 @@ html, body, #root {
   animation: row-flash 0.6s ease-out;
 }
 
+/* uPlot dark theme overrides */
+.uplot {
+  font-family: inherit;
+}
+.uplot .u-legend {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.uplot .u-legend th {
+  font-weight: 600;
+}
+.uplot .u-legend .u-series > * {
+  padding: 2px 4px;
+}
+.uplot .u-legend .u-marker {
+  width: 1em;
+  height: 2px;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
