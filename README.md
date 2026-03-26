@@ -45,6 +45,15 @@ Inspect any message with multiple views:
 - **Hex** — byte-level inspection
 - **Pic** — render the payload as an image (JPEG, PNG, GIF, WebP, BMP). Live mode auto-updates as new frames arrive.
 
+### Real-Time Charting
+Pin topics from the message table and chart their values over time:
+- **Raw mode** — payload is a plain number, plotted directly
+- **Path mode** — pick one or more fields from a JSON payload to chart
+- Auto-detects a `value` field in JSON payloads
+- Per-topic color coding with config popover (mode switch, field checkboxes)
+- Configurable max data points, clear/restart without losing pinned topics
+- Switch between detail view and chart view while data collection continues
+
 ### Connection Management
 - Multiple saved connections
 - Quick-switch dropdown in the toolbar
