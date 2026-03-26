@@ -31,6 +31,8 @@ function TopicConfigPill(props: TopicConfigPillProps) {
   const [filteredPaths, setFilteredPaths] = createSignal<string[]>([]);
   const [showSuggestions, setShowSuggestions] = createSignal(false);
 
+  let pillRef!: HTMLDivElement;
+
   const topicLabel = props.topic.split("/").at(-1) || props.topic;
 
   function handleModeChange(newMode: "raw" | "path") {
@@ -55,10 +57,21 @@ function TopicConfigPill(props: TopicConfigPillProps) {
     setShowSuggestions(false);
   }
 
+  // Close popover when clicking outside
+  onMount(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (pillRef && !pillRef.contains(e.target as Node)) {
+        setShowPopover(false);
+      }
+    }
+    document.addEventListener("click", handleClickOutside);
+    onCleanup(() => document.removeEventListener("click", handleClickOutside));
+  });
+
   return (
-    <div class="relative">
+    <div ref={pillRef} class="relative">
       <button
-        class="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors"
+        class="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors flex-shrink-0"
         onClick={() => setShowPopover(!showPopover())}
       >
         {topicLabel}
@@ -66,10 +79,9 @@ function TopicConfigPill(props: TopicConfigPillProps) {
 
       <Show when={showPopover()}>
         <div
-          class="fixed inset-0 z-30"
-          onClick={() => setShowPopover(false)}
-        />
-        <div class="absolute top-full mt-1 z-40 bg-slate-800 border border-slate-600 rounded shadow-lg p-3 w-64">
+          class="absolute top-full mt-1 z-50 bg-slate-800 border border-slate-600 rounded shadow-lg p-3 w-64"
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Mode selector */}
           <div class="mb-3">
             <div class="text-xs text-slate-400 mb-1.5">Mode</div>
@@ -267,9 +279,9 @@ export default function ChartPane() {
   });
 
   return (
-    <div class="flex flex-col h-full bg-slate-900">
+    <div class="flex flex-col h-full bg-slate-900 relative">
       {/* Config bar */}
-      <div class="flex-shrink-0 px-3 py-2 border-b border-slate-700 bg-slate-800/40 flex items-center gap-2 overflow-x-auto min-h-0">
+      <div class="flex-shrink-0 px-3 py-2 border-b border-slate-700 bg-slate-800/40 flex items-center gap-2 overflow-x-auto min-h-0 relative z-10">
         <Show
           when={pinnedList().length > 0}
           fallback={
