@@ -140,30 +140,59 @@ export default function DetailPane() {
           <span>Table</span>
         </button>
 
+        {/* Chart on/off: starts/stops data collection */}
         <button
           class="flex items-center gap-1.5 text-xs transition-colors"
           classList={{
-            "text-blue-400": detailMode() === "chart",
-            "text-slate-500 hover:text-slate-300": detailMode() !== "chart",
+            "text-blue-400": chartActive(),
+            "text-slate-500 hover:text-slate-300": !chartActive(),
           }}
           onClick={() => {
-            const next = detailMode() === "detail" ? "chart" : "detail";
-            setDetailMode(next);
-            if (next === "chart") {
-              initSeries(pinnedTopics());
-              setChartActive(true);
-            } else {
+            if (chartActive()) {
               setChartActive(false);
               clearAll();
+              if (detailMode() === "chart") setDetailMode("detail");
+            } else {
+              initSeries(pinnedTopics());
+              setChartActive(true);
+              setDetailMode("chart");
             }
           }}
-          title={detailMode() === "chart" ? "Show detail view" : "Show chart"}
+          title={chartActive() ? "Stop chart (clears data)" : "Start chart"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M1 11V3M1 11h12M3 9l3-4 3 2 4-5" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
           <span>Chart</span>
         </button>
+
+        {/* Detail/Chart view switch (only visible when chart is active) */}
+        <Show when={chartActive()}>
+          <div class="flex items-center border-l border-slate-600 pl-2 ml-0.5 gap-1">
+            <button
+              class="px-1.5 py-0.5 text-xs rounded transition-colors"
+              classList={{
+                "bg-slate-700 text-blue-400": detailMode() === "detail",
+                "text-slate-500 hover:text-slate-300": detailMode() !== "detail",
+              }}
+              onClick={() => setDetailMode("detail")}
+              title="Show payload detail"
+            >
+              Detail
+            </button>
+            <button
+              class="px-1.5 py-0.5 text-xs rounded transition-colors"
+              classList={{
+                "bg-slate-700 text-blue-400": detailMode() === "chart",
+                "text-slate-500 hover:text-slate-300": detailMode() !== "chart",
+              }}
+              onClick={() => setDetailMode("chart")}
+              title="Show chart"
+            >
+              Graph
+            </button>
+          </div>
+        </Show>
       </div>
 
       {/* Table pane */}
