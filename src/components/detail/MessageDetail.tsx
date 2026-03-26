@@ -33,9 +33,28 @@ interface Props {
 
 export default function MessageDetail(props: Props) {
   const { publish, getConnectionStatus } = useUI();
-  const { activeConnectionId } = useConnections();
+  const { activeConnectionId, getConnection } = useConnections();
   const connectionStatus = () => activeConnectionId() ? getConnectionStatus(activeConnectionId()!) : "disconnected";
   const [activeTab, setActiveTab] = createSignal<Tab>("formatted");
+  const [copyFeedback, setCopyFeedback] = createSignal(false);
+
+  function getCleanTopic(): string {
+    const fullTopic = props.node.fullTopic;
+    const connId = activeConnectionId();
+    if (!connId) return fullTopic;
+    const conn = getConnection(connId);
+    if (!conn) return fullTopic;
+    // Strip connection name prefix if present (used for MQTT connections)
+    const prefix = `${conn.name}/`;
+    return fullTopic.startsWith(prefix) ? fullTopic.slice(prefix.length) : fullTopic;
+  }
+
+  function copyTopicToClipboard() {
+    navigator.clipboard.writeText(getCleanTopic()).then(() => {
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 1500);
+    });
+  }
 
   function clearRetained() {
     publish(props.node.fullTopic, "", 1, true);
@@ -97,8 +116,23 @@ export default function MessageDetail(props: Props) {
       {/* Topic header */}
       <div class="px-4 py-3 border-b border-slate-700 bg-slate-800/50">
         <div class="flex items-start justify-between gap-2">
-          <div class="text-sm font-mono font-medium text-slate-200 break-all">
-            {props.node.fullTopic}
+          <div class="flex items-start gap-2 flex-1 min-w-0">
+            <div class="text-sm font-mono font-medium text-slate-200 break-all">
+              {props.node.fullTopic}
+            </div>
+            <button
+              class="shrink-0 p-1 rounded text-slate-500 hover:text-slate-300 transition-colors"
+              title="Copy topic (without connection name)"
+              onClick={copyTopicToClipboard}
+            >
+              <svg class="w-4 h-4" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="1" y="5" width="8" height="8" rx="1" />
+                <path d="M5 5V3a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-2" />
+              </svg>
+            </button>
+            <Show when={copyFeedback()}>
+              <span class="text-xs text-green-400 shrink-0">Copied!</span>
+            </Show>
           </div>
           <Show when={connectionStatus() === "connected"}>
             <div class="flex gap-1.5 shrink-0">
