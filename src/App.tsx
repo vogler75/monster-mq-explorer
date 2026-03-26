@@ -74,6 +74,7 @@ export default function App() {
           break;
         case "error":
           console.error(`[Worker:${connectionId}]`, event.message);
+          setConnectionStatus(connectionId, "disconnected");
           break;
         case "messages": {
           const config = getConnection(connectionId);
