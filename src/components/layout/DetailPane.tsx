@@ -35,17 +35,24 @@ export default function DetailPane() {
     setSelectedLogMsg(null);
     setSelectedLiveTopic(null);
     clearLog(pinnedTopics());
-    if (topic && logMode() === "live") {
+    if (topic) {
       const node = getNodeByTopic(topicTree, topic);
       if (node) seedLiveFromTree(node);
     }
   }));
 
-  // Clear selection when switching modes
+  // Clear selection when switching modes; re-seed live topics when entering live mode
   createEffect(() => {
-    logMode();
+    const mode = logMode();
     setSelectedLogMsg(null);
     setSelectedLiveTopic(null);
+    if (mode === "live") {
+      const topic = selectedTopic();
+      if (topic) {
+        const node = getNodeByTopic(topicTree, topic);
+        if (node) seedLiveFromTree(node);
+      }
+    }
   });
 
   function handleSelectMessage(msg: LoggedMessage | null) {
