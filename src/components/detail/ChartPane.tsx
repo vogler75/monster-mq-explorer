@@ -57,29 +57,35 @@ function TopicConfigPill(props: TopicConfigPillProps) {
     setShowSuggestions(false);
   }
 
-  // Close popover when clicking outside
+  // Close popover when clicking outside (but the fixed backdrop handles most of this)
   onMount(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (pillRef && !pillRef.contains(e.target as Node)) {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") {
         setShowPopover(false);
       }
     }
-    document.addEventListener("click", handleClickOutside);
-    onCleanup(() => document.removeEventListener("click", handleClickOutside));
+    document.addEventListener("keydown", handleEscape);
+    onCleanup(() => document.removeEventListener("keydown", handleEscape));
   });
 
   return (
-    <div ref={pillRef} class="relative">
+    <div class="relative">
       <button
-        class="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors flex-shrink-0"
+        ref={pillRef}
+        class="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors flex-shrink-0 whitespace-nowrap"
         onClick={() => setShowPopover(!showPopover())}
       >
         {topicLabel}
       </button>
 
       <Show when={showPopover()}>
+        <div class="fixed inset-0 z-40" onClick={() => setShowPopover(false)} />
         <div
-          class="absolute top-full mt-1 z-50 bg-slate-800 border border-slate-600 rounded shadow-lg p-3 w-64"
+          class="fixed z-50 bg-slate-800 border border-slate-600 rounded shadow-xl p-3 w-72"
+          style={{
+            top: `${pillRef.getBoundingClientRect().bottom + 8}px`,
+            left: `${Math.max(8, Math.min(window.innerWidth - 288 - 8, pillRef.getBoundingClientRect().left))}px`,
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Mode selector */}
@@ -143,7 +149,7 @@ function TopicConfigPill(props: TopicConfigPillProps) {
 
 export default function ChartPane() {
   const { pinnedTopics } = useWatchlist();
-  const { topicConfigs, setTopicConfigs, getSeriesArrays, seriesVersion, maxPoints, setMaxPoints, clearAll } = useChartData();
+  const { getSeriesArrays, seriesVersion, maxPoints, setMaxPoints, clearAll, getTopicConfig, updateTopicConfig } = useChartData();
   const { liveTopics } = useMessageLog();
 
   let containerRef!: HTMLDivElement;
@@ -279,9 +285,9 @@ export default function ChartPane() {
   });
 
   return (
-    <div class="flex flex-col h-full bg-slate-900 relative">
+    <div class="flex flex-col h-full bg-slate-900">
       {/* Config bar */}
-      <div class="flex-shrink-0 px-3 py-2 border-b border-slate-700 bg-slate-800/40 flex items-center gap-2 overflow-x-auto min-h-0 relative z-10">
+      <div class="flex-shrink-0 px-3 py-2 border-b border-slate-700 bg-slate-800/40 flex items-center gap-2 overflow-x-auto min-h-0">
         <Show
           when={pinnedList().length > 0}
           fallback={
@@ -291,19 +297,16 @@ export default function ChartPane() {
           }
         >
           <>
-            {pinnedList().map((topic) => {
-              const config = () => topicConfigs[topic] || { topic, pathConfig: { mode: "raw", path: "" } };
-              return (
-                <TopicConfigPill
-                  topic={topic}
-                  config={config().pathConfig}
-                  onConfigChange={(newConfig) => {
-                    setTopicConfigs(topic, { topic, pathConfig: newConfig });
-                  }}
-                  suggestedPaths={getSuggestedPaths(topic)}
-                />
-              );
-            })}
+            {pinnedList().map((topic) => (
+              <TopicConfigPill
+                topic={topic}
+                config={getTopicConfig(topic)}
+                onConfigChange={(newConfig) => {
+                  updateTopicConfig(topic, newConfig);
+                }}
+                suggestedPaths={getSuggestedPaths(topic)}
+              />
+            ))}
 
             <div class="flex-1" />
 
@@ -332,7 +335,7 @@ export default function ChartPane() {
       </div>
 
       {/* Chart container */}
-      <div class="flex-1 relative overflow-hidden bg-slate-850">
+      <div class="flex-1 overflow-hidden bg-slate-850">
         <div
           ref={containerRef}
           class="w-full h-full"

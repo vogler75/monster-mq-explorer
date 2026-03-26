@@ -1,5 +1,4 @@
 import { createSignal } from "solid-js";
-import { createStore } from "solid-js/store";
 import type { PathConfig } from "../lib/jsonPath";
 import { extractValue } from "../lib/jsonPath";
 
@@ -21,11 +20,13 @@ export interface TopicSeries {
 // Singleton module-level state
 const [chartActive, setChartActive] = createSignal(false);
 const [maxPoints, setMaxPoints] = createSignal(MAX_DEFAULT);
-const [topicConfigs, setTopicConfigs] = createStore<Record<string, TopicChartConfig>>({});
 
-// Series data: plain object (NOT a Solid store) to avoid reactive overhead on TypedArray operations.
-// Paired with a version counter signal to trigger chart redraws.
+// Plain objects (not Solid stores) to avoid reactivity issues
+// These are accessed synchronously from pushMessage
+let topicConfigs: Record<string, TopicChartConfig> = {};
 let seriesData: Record<string, TopicSeries> = {};
+
+// Version counter to trigger chart redraws
 const [seriesVersion, setSeriesVersion] = createSignal(0);
 
 export function useChartData() {
@@ -36,14 +37,14 @@ export function useChartData() {
    */
   function initSeries(pinnedTopics: Set<string>) {
     seriesData = {};
+    topicConfigs = {};
+
     for (const topic of pinnedTopics) {
       ensureSeries(topic);
-      if (!topicConfigs[topic]) {
-        setTopicConfigs(topic, {
-          topic,
-          pathConfig: { mode: "raw", path: "" },
-        });
-      }
+      topicConfigs[topic] = {
+        topic,
+        pathConfig: { mode: "raw", path: "" },
+      };
     }
     setSeriesVersion(0);
   }
@@ -65,8 +66,27 @@ export function useChartData() {
   }
 
   /**
+   * Updates the path config for a topic and notify chart to redraw.
+   */
+  function updateTopicConfig(topic: string, pathConfig: PathConfig) {
+    if (topicConfigs[topic]) {
+      topicConfigs[topic].pathConfig = pathConfig;
+      // Force chart redraw with new config
+      setSeriesVersion((v) => v + 1);
+    }
+  }
+
+  /**
+   * Gets the current config for a topic (for UI binding).
+   */
+  function getTopicConfig(topic: string): PathConfig {
+    return topicConfigs[topic]?.pathConfig || { mode: "raw", path: "" };
+  }
+
+  /**
    * Pushes a new message into the series ring buffer.
    * Only called when chartActive() is true.
+   * This is called from the worker message handler - must be synchronous.
    */
   function pushMessage(
     topic: string,
@@ -125,6 +145,7 @@ export function useChartData() {
    */
   function clearAll() {
     seriesData = {};
+    topicConfigs = {};
     setSeriesVersion(0);
   }
 
@@ -133,13 +154,13 @@ export function useChartData() {
     setChartActive,
     maxPoints,
     setMaxPoints,
-    topicConfigs,
-    setTopicConfigs,
     seriesVersion,
     initSeries,
     ensureSeries,
     pushMessage,
     getSeriesArrays,
+    getTopicConfig,
+    updateTopicConfig,
     clearAll,
   };
 }
