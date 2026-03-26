@@ -7,6 +7,29 @@ import { useMessageLog } from "../../stores/messageLog";
 import { collectJsonPaths } from "../../lib/jsonPath";
 import type { PathConfig } from "../../lib/jsonPath";
 
+/**
+ * Build a short but unique label for a topic within a set of topics.
+ * Uses only as many trailing segments as needed to distinguish all topics.
+ * e.g. ["a/b/watt", "a/c/watt"] → ["b/watt", "c/watt"]
+ */
+function shortLabels(topics: string[]): Map<string, string> {
+  const result = new Map<string, string>();
+  // Start with 1 trailing segment, increase until all labels are unique
+  for (let segs = 1; segs <= 10; segs++) {
+    result.clear();
+    const seen = new Map<string, number>(); // label → count
+    for (const t of topics) {
+      const parts = t.split("/");
+      const label = parts.slice(-segs).join("/");
+      result.set(t, label);
+      seen.set(label, (seen.get(label) || 0) + 1);
+    }
+    const allUnique = [...seen.values()].every((c) => c === 1);
+    if (allUnique || segs >= topics[0]?.split("/").length) break;
+  }
+  return result;
+}
+
 const SERIES_COLORS = [
   "#60a5fa", // blue-400
   "#34d399", // emerald-400
@@ -20,6 +43,7 @@ const SERIES_COLORS = [
 
 interface TopicConfigPillProps {
   topic: string;
+  label: string;
   config: PathConfig;
   onConfigChange: (newConfig: PathConfig) => void;
   suggestedPaths: string[];
@@ -34,7 +58,7 @@ function TopicConfigPill(props: TopicConfigPillProps) {
 
   let pillRef!: HTMLDivElement;
 
-  const topicLabel = props.topic.split("/").at(-1) || props.topic;
+  const topicLabel = () => props.label || props.topic;
 
   function handleModeChange(newMode: "raw" | "path") {
     setMode(newMode);
@@ -76,7 +100,7 @@ function TopicConfigPill(props: TopicConfigPillProps) {
         class="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors flex-shrink-0 whitespace-nowrap"
         onClick={() => setShowPopover(!showPopover())}
       >
-        {topicLabel}
+        {topicLabel()}
       </button>
 
       <Show when={showPopover()}>
@@ -157,6 +181,7 @@ export default function ChartPane() {
   let uplotInstance: uPlot | undefined;
 
   const pinnedList = createMemo(() => [...pinnedTopics()]);
+  const labels = createMemo(() => shortLabels(pinnedList()));
 
   // Collect suggested paths for a topic
   const getSuggestedPaths = (topic: string): string[] => {
@@ -174,13 +199,14 @@ export default function ChartPane() {
   // Build uplot options for dark theme
   function buildOpts(topics: string[], container: HTMLDivElement): uPlot.Options {
     const rect = container.getBoundingClientRect();
+    const lbls = labels();
     return {
       width: rect.width,
       height: rect.height,
       series: [
         {}, // x-axis (timestamps)
         ...topics.map((topic, i) => ({
-          label: topic.split("/").at(-1),
+          label: lbls.get(topic) || topic,
           stroke: SERIES_COLORS[i % SERIES_COLORS.length],
           width: 1.5,
         })),
@@ -309,6 +335,7 @@ export default function ChartPane() {
             {pinnedList().map((topic) => (
               <TopicConfigPill
                 topic={topic}
+                label={labels().get(topic) || topic}
                 config={getTopicConfig(topic)}
                 onConfigChange={(newConfig) => {
                   updateTopicConfig(topic, newConfig);
