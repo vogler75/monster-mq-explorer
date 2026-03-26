@@ -374,7 +374,7 @@ export default function ChartPane() {
                   label={topicLabels().get(topic) || topic}
                   colorIndex={topicColorOffset().get(topic) || 0}
                   seriesCount={config().mode === "raw" ? 1 : config().paths.length}
-                  hasError={topicHasError(topic)}
+                  hasError={(configVersion(), topicHasError(topic))}
                   mode={config().mode}
                   selectedPaths={config().paths}
                   suggestedPaths={getSuggestedPaths(topic)}

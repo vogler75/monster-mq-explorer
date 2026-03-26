@@ -88,25 +88,82 @@ export function useChartData() {
     seriesData = {};
     topicConfigs = {};
 
+    const max = maxPoints();
     for (const topic of pinnedTopics) {
-      const detected = autoDetectConfig(getPayload?.(topic));
+      const payload = getPayload?.(topic);
+      const detected = autoDetectConfig(payload);
       topicConfigs[topic] = { topic, ...detected };
       for (const key of seriesKeysForTopic(topic)) {
         allocSeries(key);
       }
+      // Seed with current value so the chart doesn't start empty
+      if (payload) {
+        const config = topicConfigs[topic];
+        const now = Date.now();
+        if (config.mode === "raw") {
+          const value = extractValue(payload, { mode: "raw", path: "" });
+          if (value !== null) {
+            const key = seriesKey(topic);
+            const series = seriesData[key];
+            if (series) {
+              series.timestamps[0] = now;
+              series.values[0] = value;
+              series.head = 1;
+              series.count = 1;
+            }
+          }
+        } else {
+          for (const path of config.paths) {
+            const value = extractValue(payload, { mode: "path", path });
+            if (value !== null) {
+              const key = seriesKey(topic, path);
+              const series = seriesData[key];
+              if (series) {
+                series.timestamps[0] = now;
+                series.values[0] = value;
+                series.head = 1;
+                series.count = 1;
+              }
+            }
+          }
+        }
+      }
     }
-    setSeriesVersion(0);
-    setConfigVersion(0);
+    setSeriesVersion((v) => v + 1);
+    setConfigVersion((v) => v + 1);
   }
 
   function ensureSeries(topic: string, payload?: Uint8Array) {
-    if (!topicConfigs[topic]) {
+    const isNew = !topicConfigs[topic];
+    if (isNew) {
       const detected = autoDetectConfig(payload);
       topicConfigs[topic] = { topic, ...detected };
     }
     // Allocate ring buffers for all series of this topic
     for (const key of seriesKeysForTopic(topic)) {
       allocSeries(key);
+    }
+    // Seed initial value and notify chart for newly added topics
+    if (isNew && payload) {
+      const config = topicConfigs[topic];
+      const now = Date.now();
+      if (config.mode === "raw") {
+        const value = extractValue(payload, { mode: "raw", path: "" });
+        if (value !== null) {
+          const s = seriesData[seriesKey(topic)];
+          if (s) { s.timestamps[0] = now; s.values[0] = value; s.head = 1; s.count = 1; }
+        }
+      } else {
+        for (const path of config.paths) {
+          const value = extractValue(payload, { mode: "path", path });
+          if (value !== null) {
+            const s = seriesData[seriesKey(topic, path)];
+            if (s) { s.timestamps[0] = now; s.values[0] = value; s.head = 1; s.count = 1; }
+          }
+        }
+      }
+      setSeriesVersion((v) => v + 1);
+      setConfigVersion((v) => v + 1);
     }
   }
 
