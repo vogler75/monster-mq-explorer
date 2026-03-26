@@ -4,17 +4,21 @@ import { useTopicTree } from "../../stores/topics";
 import { getNodeByTopic } from "../../lib/topic-tree";
 import MessageDetail from "../detail/MessageDetail";
 import MessageTable from "../detail/MessageTable";
+import ChartPane from "../detail/ChartPane";
 import type { LoggedMessage } from "../../stores/messageLog";
 import { useMessageLog } from "../../stores/messageLog";
 import { useWatchlist } from "../../stores/watchlist";
+import { useChartData } from "../../stores/chartData";
 
 export default function DetailPane() {
   const { selectedTopic } = useUI();
   const { topicTree } = useTopicTree();
   const { logEnabled, setLogEnabled, logMode, liveTopics, clearLog, seedLiveFromTree } = useMessageLog();
   const { pinnedTopics } = useWatchlist();
+  const { initSeries, setChartActive, clearAll, ensureSeries, chartActive } = useChartData();
 
   const [tableHeight, setTableHeight] = createSignal(0);
+  const [detailMode, setDetailMode] = createSignal<"detail" | "chart">("detail");
 
   onMount(() => setTableHeight(Math.floor(containerRef.getBoundingClientRect().height / 2)));
   // In history mode: store the clicked message object directly (stable snapshot)
@@ -38,6 +42,14 @@ export default function DetailPane() {
     if (topic) {
       const node = getNodeByTopic(topicTree, topic);
       if (node) seedLiveFromTree(node);
+    }
+  }));
+
+  // When chart is active and pinned topics change, ensure series exist for new topics
+  createEffect(on(pinnedTopics, (pinned) => {
+    if (!chartActive()) return;
+    for (const topic of pinned) {
+      ensureSeries(topic);
     }
   }));
 
@@ -106,8 +118,8 @@ export default function DetailPane() {
 
   return (
     <div ref={containerRef!} class="flex-1 flex flex-col overflow-hidden bg-slate-900 min-w-0">
-      {/* Table toggle strip */}
-      <div class="flex items-center px-3 py-0.5 border-b border-slate-700 bg-slate-800/40 shrink-0">
+      {/* Table/Chart toggle strip */}
+      <div class="flex items-center px-3 py-0.5 border-b border-slate-700 bg-slate-800/40 shrink-0 gap-2">
         <button
           class="flex items-center gap-1.5 text-xs transition-colors"
           classList={{
@@ -126,6 +138,31 @@ export default function DetailPane() {
             <path d="M1 5h12M5 5v7" />
           </svg>
           <span>Table</span>
+        </button>
+
+        <button
+          class="flex items-center gap-1.5 text-xs transition-colors"
+          classList={{
+            "text-blue-400": detailMode() === "chart",
+            "text-slate-500 hover:text-slate-300": detailMode() !== "chart",
+          }}
+          onClick={() => {
+            const next = detailMode() === "detail" ? "chart" : "detail";
+            setDetailMode(next);
+            if (next === "chart") {
+              initSeries(pinnedTopics());
+              setChartActive(true);
+            } else {
+              setChartActive(false);
+              clearAll();
+            }
+          }}
+          title={detailMode() === "chart" ? "Show detail view" : "Show chart"}
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M1 11V3M1 11h12M3 9l3-4 3 2 4-5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Chart</span>
         </button>
       </div>
 
@@ -148,21 +185,28 @@ export default function DetailPane() {
       </Show>
 
       {/* Detail pane */}
-      <div class="flex-1 overflow-auto min-h-0">
+      <div class="flex-1 overflow-hidden min-h-0">
         <Show
-          when={selectedNode()}
+          when={detailMode() === "chart"}
           fallback={
-            <div class="h-full flex items-center justify-center text-slate-500 text-sm">
-              Click a topic in the tree to view its data
-            </div>
+            <Show
+              when={selectedNode()}
+              fallback={
+                <div class="h-full flex items-center justify-center text-slate-500 text-sm">
+                  Click a topic in the tree to view its data
+                </div>
+              }
+            >
+              {(node) => (
+                <MessageDetail
+                  node={node()}
+                  overrideMessage={overrideMessage()}
+                />
+              )}
+            </Show>
           }
         >
-          {(node) => (
-            <MessageDetail
-              node={node()}
-              overrideMessage={overrideMessage()}
-            />
-          )}
+          <ChartPane />
         </Show>
       </div>
     </div>

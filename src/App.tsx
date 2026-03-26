@@ -7,6 +7,7 @@ import { useTopicTree } from "./stores/topics";
 import { useUI } from "./stores/ui";
 import { useMessageLog } from "./stores/messageLog";
 import { useWatchlist } from "./stores/watchlist";
+import { useChartData } from "./stores/chartData";
 import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
@@ -38,6 +39,7 @@ export default function App() {
   const { getConnectionStatus, setConnectionStatus, showConnectionModal, showSubscriptionModal, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
   const { addMessages } = useMessageLog();
   const { pinnedTopics } = useWatchlist();
+  const { pushMessage, chartActive } = useChartData();
 
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
 
@@ -80,6 +82,11 @@ export default function App() {
             : event.batch;
           const newTopics = processBatch(batch);
           addMessages(batch, selectedTopic(), pinnedTopics());
+          if (chartActive()) {
+            for (const m of batch) {
+              pushMessage(m.topic, m.payload, m.timestamp);
+            }
+          }
           if (autoExpand() && newTopics.length > 0) {
             expandTopics(newTopics);
           }

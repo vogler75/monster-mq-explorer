@@ -22,7 +22,8 @@
     "@tanstack/solid-virtual": "^3.13.23",
     "idb-keyval": "^6.2.2",
     "mqtt": "^5.15.1",
-    "solid-js": "^1.9.11"
+    "solid-js": "^1.9.11",
+    "uplot": "^1.6.32"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
