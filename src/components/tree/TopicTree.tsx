@@ -114,6 +114,20 @@ export default function TopicTree() {
         <button
           class="p-1 rounded shrink-0 transition-colors"
           classList={{
+            "text-slate-500 hover:text-slate-300 cursor-not-allowed opacity-50": !selectedTopic(),
+            "text-slate-400 hover:text-slate-200": !!selectedTopic(),
+          }}
+          disabled={!selectedTopic()}
+          onClick={() => setSelectedTopic(null)}
+          title="Deselect topic"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 4l6 6M10 4l-6 6" />
+          </svg>
+        </button>
+        <button
+          class="p-1 rounded shrink-0 transition-colors"
+          classList={{
             "text-blue-400 bg-blue-400/10": showRetainedOnly(),
             "text-slate-500 hover:text-slate-300": !showRetainedOnly(),
           }}
