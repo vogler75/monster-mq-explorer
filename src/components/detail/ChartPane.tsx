@@ -1,23 +1,20 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { useWatchlist } from "../../stores/watchlist";
-import { useChartData } from "../../stores/chartData";
+import { useChartData, seriesKey } from "../../stores/chartData";
 import { useMessageLog } from "../../stores/messageLog";
 import { collectJsonPaths, extractValue } from "../../lib/jsonPath";
-import type { PathConfig } from "../../lib/jsonPath";
 
 /**
  * Build a short but unique label for a topic within a set of topics.
  * Uses only as many trailing segments as needed to distinguish all topics.
- * e.g. ["a/b/watt", "a/c/watt"] → ["b/watt", "c/watt"]
  */
 function shortLabels(topics: string[]): Map<string, string> {
   const result = new Map<string, string>();
-  // Start with 1 trailing segment, increase until all labels are unique
   for (let segs = 1; segs <= 10; segs++) {
     result.clear();
-    const seen = new Map<string, number>(); // label → count
+    const seen = new Map<string, number>();
     for (const t of topics) {
       const parts = t.split("/");
       const label = parts.slice(-segs).join("/");
@@ -25,81 +22,66 @@ function shortLabels(topics: string[]): Map<string, string> {
       seen.set(label, (seen.get(label) || 0) + 1);
     }
     const allUnique = [...seen.values()].every((c) => c === 1);
-    if (allUnique || segs >= topics[0]?.split("/").length) break;
+    if (allUnique || segs >= (topics[0]?.split("/").length ?? 1)) break;
   }
   return result;
 }
 
 const SERIES_COLORS = [
-  "#60a5fa", // blue-400
-  "#34d399", // emerald-400
-  "#f59e0b", // amber-400
-  "#f87171", // red-400
-  "#a78bfa", // violet-400
-  "#22d3ee", // cyan-400
-  "#fb923c", // orange-400
-  "#e879f9", // fuchsia-400
+  "#60a5fa", "#34d399", "#f59e0b", "#f87171",
+  "#a78bfa", "#22d3ee", "#fb923c", "#e879f9",
 ];
+
+/** Build a display label for a series key */
+function seriesLabel(key: string, topicLabels: Map<string, string>): string {
+  const sep = key.indexOf("\0");
+  if (sep === -1) {
+    return topicLabels.get(key) || key;
+  }
+  const topic = key.slice(0, sep);
+  const path = key.slice(sep + 1);
+  const tl = topicLabels.get(topic) || topic;
+  return `${tl}.${path}`;
+}
+
+// ── TopicConfigPill ─────────────────────────────────────────────────
 
 interface TopicConfigPillProps {
   topic: string;
   label: string;
-  color: string;
+  colorIndex: number;
+  seriesCount: number;
   hasError: boolean;
-  config: PathConfig;
-  onConfigChange: (newConfig: PathConfig) => void;
+  mode: "raw" | "path";
+  selectedPaths: string[];
   suggestedPaths: string[];
+  onModeChange: (mode: "raw" | "path") => void;
+  onTogglePath: (path: string) => void;
 }
 
 function TopicConfigPill(props: TopicConfigPillProps) {
   const [showPopover, setShowPopover] = createSignal(false);
-  const [mode, setMode] = createSignal<"raw" | "path">(props.config.mode);
-  const [path, setPath] = createSignal(props.config.path);
-  const [filteredPaths, setFilteredPaths] = createSignal<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = createSignal(false);
+  const [filter, setFilter] = createSignal("");
 
   let pillRef!: HTMLDivElement;
 
-  const topicLabel = () => props.label || props.topic;
-
-  function updateSuggestions(filter: string) {
-    const filtered = filter
-      ? props.suggestedPaths.filter((p) => p.toLowerCase().includes(filter.toLowerCase()))
+  const filteredPaths = () => {
+    const f = filter().toLowerCase();
+    return f
+      ? props.suggestedPaths.filter((p) => p.toLowerCase().includes(f))
       : props.suggestedPaths;
-    setFilteredPaths(filtered);
-    setShowSuggestions(filtered.length > 0);
-  }
+  };
 
-  function handleModeChange(newMode: "raw" | "path") {
-    setMode(newMode);
-    props.onConfigChange({ mode: newMode, path: newMode === "raw" ? "" : path() });
-    if (newMode === "path") {
-      updateSuggestions(path());
-    }
-  }
-
-  function handlePathChange(newPath: string) {
-    setPath(newPath);
-    props.onConfigChange({ mode: "path", path: newPath });
-    updateSuggestions(newPath);
-  }
-
-  function selectSuggestion(suggestion: string) {
-    setPath(suggestion);
-    props.onConfigChange({ mode: "path", path: suggestion });
-    setShowSuggestions(false);
-  }
-
-  // Close popover when clicking outside (but the fixed backdrop handles most of this)
   onMount(() => {
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setShowPopover(false);
-      }
+      if (e.key === "Escape") setShowPopover(false);
     }
     document.addEventListener("keydown", handleEscape);
     onCleanup(() => document.removeEventListener("keydown", handleEscape));
   });
+
+  // Color swatch: show first assigned color for this topic
+  const pillColor = () => SERIES_COLORS[props.colorIndex % SERIES_COLORS.length];
 
   return (
     <div class="relative">
@@ -108,8 +90,11 @@ function TopicConfigPill(props: TopicConfigPillProps) {
         class="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors flex-shrink-0 whitespace-nowrap flex items-center gap-1.5"
         onClick={() => setShowPopover(!showPopover())}
       >
-        <span class="inline-block w-3 h-2 rounded-sm flex-shrink-0" style={{ "background-color": props.color }} />
-        {topicLabel()}
+        <span class="inline-block w-3 h-2 rounded-sm flex-shrink-0" style={{ "background-color": pillColor() }} />
+        {props.label}
+        {props.mode === "path" && props.selectedPaths.length > 0 && (
+          <span class="text-slate-400">({props.selectedPaths.length})</span>
+        )}
         {props.hasError && (
           <span class="text-amber-400 flex-shrink-0" title="Cannot convert payload to number — configure JSON path">&#x26A0;</span>
         )}
@@ -132,50 +117,76 @@ function TopicConfigPill(props: TopicConfigPillProps) {
               <button
                 class="flex-1 px-2 py-1.5 text-xs rounded transition-colors"
                 classList={{
-                  "bg-blue-600 text-white": mode() === "raw",
-                  "bg-slate-700 text-slate-300 hover:bg-slate-600": mode() !== "raw",
+                  "bg-blue-600 text-white": props.mode === "raw",
+                  "bg-slate-700 text-slate-300 hover:bg-slate-600": props.mode !== "raw",
                 }}
-                onClick={() => handleModeChange("raw")}
+                onClick={() => props.onModeChange("raw")}
               >
                 Raw
               </button>
               <button
                 class="flex-1 px-2 py-1.5 text-xs rounded transition-colors"
                 classList={{
-                  "bg-blue-600 text-white": mode() === "path",
-                  "bg-slate-700 text-slate-300 hover:bg-slate-600": mode() !== "path",
+                  "bg-blue-600 text-white": props.mode === "path",
+                  "bg-slate-700 text-slate-300 hover:bg-slate-600": props.mode !== "path",
                 }}
-                onClick={() => handleModeChange("path")}
+                onClick={() => props.onModeChange("path")}
               >
                 Path
               </button>
             </div>
           </div>
 
-          {/* Path input */}
-          <Show when={mode() === "path"}>
-            <div class="relative">
-              <div class="text-xs text-slate-400 mb-1">JSON Path</div>
-              <input
-                type="text"
-                placeholder="e.g., temperature"
-                value={path()}
-                onInput={(e) => handlePathChange(e.currentTarget.value)}
-                class="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
-              />
-              <Show when={showSuggestions()}>
-                <div class="absolute top-full mt-1 left-0 right-0 bg-slate-700 border border-slate-600 rounded shadow-md max-h-32 overflow-y-auto z-50">
-                  {filteredPaths().map((p) => (
-                    <button
-                      type="button"
-                      class="w-full text-left px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-600 transition-colors"
-                      onClick={() => selectSuggestion(p)}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
+          {/* Path selection (checkboxes) */}
+          <Show when={props.mode === "path"}>
+            <div>
+              <div class="text-xs text-slate-400 mb-1">Select fields</div>
+              {/* Filter input */}
+              <Show when={props.suggestedPaths.length > 5}>
+                <input
+                  type="text"
+                  placeholder="Filter fields..."
+                  value={filter()}
+                  onInput={(e) => setFilter(e.currentTarget.value)}
+                  class="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 mb-2"
+                />
               </Show>
+              {/* Checkbox list */}
+              <div class="max-h-48 overflow-y-auto space-y-0.5">
+                <Show
+                  when={filteredPaths().length > 0}
+                  fallback={
+                    <div class="text-xs text-slate-500 py-1">No JSON fields found in payload</div>
+                  }
+                >
+                  <For each={filteredPaths()}>
+                    {(p) => {
+                      const checked = () => props.selectedPaths.includes(p);
+                      // Color for this specific path's series
+                      const pathColorIdx = () => {
+                        if (!checked()) return 0;
+                        // Find position in all series for consistent color
+                        return props.colorIndex + props.selectedPaths.indexOf(p);
+                      };
+                      return (
+                        <label class="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-slate-700/50 cursor-pointer text-xs">
+                          <input
+                            type="checkbox"
+                            checked={checked()}
+                            onChange={() => props.onTogglePath(p)}
+                            class="accent-blue-500"
+                          />
+                          <span
+                            class="inline-block w-2.5 h-1.5 rounded-sm flex-shrink-0"
+                            style={{ "background-color": checked() ? SERIES_COLORS[pathColorIdx() % SERIES_COLORS.length] : "#475569" }}
+                          />
+                          <span class="text-slate-200 truncate">{p}</span>
+                        </label>
+                      );
+                    }}
+                  </For>
+                </Show>
+              </div>
             </div>
           </Show>
         </div>
@@ -184,18 +195,29 @@ function TopicConfigPill(props: TopicConfigPillProps) {
   );
 }
 
+// ── ChartPane ───────────────────────────────────────────────────────
+
 export default function ChartPane() {
   const { pinnedTopics } = useWatchlist();
-  const { getSeriesArrays, seriesVersion, maxPoints, setMaxPoints, clearAll, getTopicConfig, updateTopicConfig } = useChartData();
+  const {
+    getSeriesArrays, seriesVersion, configVersion,
+    maxPoints, setMaxPoints, clearAll,
+    getTopicConfig, updateTopicConfig, getAllSeriesKeys,
+  } = useChartData();
   const { liveTopics } = useMessageLog();
 
   let containerRef!: HTMLDivElement;
   let uplotInstance: uPlot | undefined;
 
   const pinnedList = createMemo(() => [...pinnedTopics()]);
-  const labels = createMemo(() => shortLabels(pinnedList()));
+  const topicLabels = createMemo(() => shortLabels(pinnedList()));
 
-  // Collect suggested paths for a topic
+  // All series keys (recomputed when config or pinned topics change)
+  const allKeys = createMemo(() => {
+    configVersion(); // track config changes
+    return getAllSeriesKeys(pinnedList());
+  });
+
   const getSuggestedPaths = (topic: string): string[] => {
     const msg = liveTopics[topic];
     if (!msg) return [];
@@ -208,95 +230,82 @@ export default function ChartPane() {
     }
   };
 
-  // Check if the current config can extract a numeric value from the latest payload
   const topicHasError = (topic: string): boolean => {
     const msg = liveTopics[topic];
-    if (!msg) return false; // no message yet, not an error
+    if (!msg) return false;
     const config = getTopicConfig(topic);
-    return extractValue(msg.payload, config) === null;
+    if (config.mode === "raw") {
+      return extractValue(msg.payload, { mode: "raw", path: "" }) === null;
+    }
+    // Path mode: error if no paths selected, or none of them extract a value
+    if (config.paths.length === 0) return true;
+    return config.paths.every(
+      (p) => extractValue(msg.payload, { mode: "path", path: p }) === null
+    );
   };
 
-  // Build uplot options for dark theme
-  function buildOpts(topics: string[], container: HTMLDivElement): uPlot.Options {
+  // ── uPlot helpers ──
+
+  function buildOpts(keys: string[], container: HTMLDivElement): uPlot.Options {
     const rect = container.getBoundingClientRect();
-    const lbls = labels();
+    const lbls = topicLabels();
     return {
       width: rect.width,
       height: rect.height,
       series: [
-        {}, // x-axis (timestamps)
-        ...topics.map((topic, i) => ({
-          label: lbls.get(topic) || topic,
+        {},
+        ...keys.map((key, i) => ({
+          label: seriesLabel(key, lbls),
           stroke: SERIES_COLORS[i % SERIES_COLORS.length],
           width: 1.5,
         })),
       ],
       axes: [
-        {
-          stroke: "#64748b",
-          ticks: { stroke: "#1e293b" },
-          grid: { stroke: "#1e293b" },
-        },
-        {
-          stroke: "#64748b",
-          ticks: { stroke: "#1e293b" },
-          grid: { stroke: "#1e293b" },
-        },
+        { stroke: "#64748b", ticks: { stroke: "#1e293b" }, grid: { stroke: "#1e293b" } },
+        { stroke: "#64748b", ticks: { stroke: "#1e293b" }, grid: { stroke: "#1e293b" } },
       ],
-      scales: {
-        x: { time: true },
-      },
+      scales: { x: { time: true } },
       cursor: { stroke: "#94a3b8", width: 1 },
       legend: { show: true },
     };
   }
 
-  // Build data for uplot: merged x-axis with all series.
-  // Uses undefined (not null) for missing points so uplot connects
-  // through them instead of drawing gaps.
-  function buildData(topics: string[]): uPlot.AlignedData {
-    if (topics.length === 0) return [[]];
+  function buildData(keys: string[]): uPlot.AlignedData {
+    if (keys.length === 0) return [[]];
 
-    // Collect all timestamps and merge into a unified x-axis
     const allTs = new Set<number>();
     const seriesMap = new Map<string, { timestamps: number[]; values: number[] }>();
 
-    for (const topic of topics) {
-      const data = getSeriesArrays(topic);
+    for (const key of keys) {
+      const data = getSeriesArrays(key);
       if (data) {
-        seriesMap.set(topic, data);
+        seriesMap.set(key, data);
         for (const t of data.timestamps) allTs.add(t);
       }
     }
 
     const xs = [...allTs].sort((a, b) => a - b);
 
-    // Map each topic to the unified x-axis.
-    // undefined = "no data at this timestamp, connect through it"
-    // null      = "gap, break the line" (we don't want this)
-    const ys = topics.map((topic) => {
-      const data = seriesMap.get(topic);
+    const ys = keys.map((key) => {
+      const data = seriesMap.get(key);
       if (!data) return xs.map(() => undefined);
       const map = new Map(data.timestamps.map((t, i) => [t, data.values[i]]));
       return xs.map((t) => map.has(t) ? map.get(t)! : undefined);
     });
 
-    // Convert timestamps from ms to Unix seconds
     return [xs.map((t) => t / 1000), ...ys] as uPlot.AlignedData;
   }
+
+  // ── uPlot lifecycle ──
 
   onMount(() => {
     if (!containerRef) return;
 
-    // Defer initial creation so the container has its final layout dimensions
     requestAnimationFrame(() => {
-      const topics = pinnedList();
-      const opts = buildOpts(topics, containerRef);
-      const data = buildData(topics);
-      uplotInstance = new uPlot(opts, data, containerRef);
+      const keys = allKeys();
+      uplotInstance = new uPlot(buildOpts(keys, containerRef), buildData(keys), containerRef);
     });
 
-    // Resize observer — keeps canvas matched to container size
     const ro = new ResizeObserver(([entry]) => {
       if (!uplotInstance) return;
       const { width, height } = entry.contentRect;
@@ -313,23 +322,36 @@ export default function ChartPane() {
     });
   });
 
-  // Redraw on new data points
+  // Redraw on new data
   createEffect(() => {
-    seriesVersion(); // track changes
+    seriesVersion();
     if (!uplotInstance) return;
-    const data = buildData(pinnedList());
-    uplotInstance.setData(data);
+    uplotInstance.setData(buildData(allKeys()));
   });
 
-  // Rebuild when series list changes
+  // Rebuild chart when series list changes (topics or paths added/removed)
   createEffect(() => {
-    const topics = pinnedList();
+    const keys = allKeys();
     if (!uplotInstance || !containerRef) return;
     uplotInstance.destroy();
-    const opts = buildOpts(topics, containerRef);
-    const data = buildData(topics);
-    uplotInstance = new uPlot(opts, data, containerRef);
+    uplotInstance = new uPlot(buildOpts(keys, containerRef), buildData(keys), containerRef);
   });
+
+  // ── Compute color index offset per topic ──
+  // Each topic's series start at a running color offset so colors don't collide
+  const topicColorOffset = createMemo(() => {
+    configVersion();
+    const offsets = new Map<string, number>();
+    let idx = 0;
+    for (const topic of pinnedList()) {
+      offsets.set(topic, idx);
+      const config = getTopicConfig(topic);
+      idx += config.mode === "raw" ? 1 : Math.max(1, config.paths.length);
+    }
+    return offsets;
+  });
+
+  // ── Render ──
 
   return (
     <div class="flex flex-col h-full bg-slate-900">
@@ -344,23 +366,35 @@ export default function ChartPane() {
           }
         >
           <>
-            {pinnedList().map((topic, i) => (
-              <TopicConfigPill
-                topic={topic}
-                label={labels().get(topic) || topic}
-                color={SERIES_COLORS[i % SERIES_COLORS.length]}
-                hasError={topicHasError(topic)}
-                config={getTopicConfig(topic)}
-                onConfigChange={(newConfig) => {
-                  updateTopicConfig(topic, newConfig);
-                }}
-                suggestedPaths={getSuggestedPaths(topic)}
-              />
-            ))}
+            {pinnedList().map((topic) => {
+              const config = () => { configVersion(); return getTopicConfig(topic); };
+              return (
+                <TopicConfigPill
+                  topic={topic}
+                  label={topicLabels().get(topic) || topic}
+                  colorIndex={topicColorOffset().get(topic) || 0}
+                  seriesCount={config().mode === "raw" ? 1 : config().paths.length}
+                  hasError={topicHasError(topic)}
+                  mode={config().mode}
+                  selectedPaths={config().paths}
+                  suggestedPaths={getSuggestedPaths(topic)}
+                  onModeChange={(mode) => {
+                    const cur = getTopicConfig(topic);
+                    updateTopicConfig(topic, mode, mode === "raw" ? [] : cur.paths);
+                  }}
+                  onTogglePath={(path) => {
+                    const cur = getTopicConfig(topic);
+                    const paths = cur.paths.includes(path)
+                      ? cur.paths.filter((p) => p !== path)
+                      : [...cur.paths, path];
+                    updateTopicConfig(topic, "path", paths);
+                  }}
+                />
+              );
+            })}
 
             <div class="flex-1" />
 
-            {/* Right side controls */}
             <div class="flex items-center gap-2 flex-shrink-0">
               <label class="flex items-center gap-1.5 text-xs">
                 <span class="text-slate-400">Max points:</span>
@@ -384,13 +418,9 @@ export default function ChartPane() {
         </Show>
       </div>
 
-      {/* Chart container — relative wrapper so the canvas + overlay stack correctly */}
+      {/* Chart container */}
       <div class="flex-1 relative min-h-0" style={{ "background-color": "rgb(10, 15, 30)" }}>
-        <div
-          ref={containerRef}
-          class="absolute inset-0"
-        />
-
+        <div ref={containerRef} class="absolute inset-0" />
       </div>
     </div>
   );

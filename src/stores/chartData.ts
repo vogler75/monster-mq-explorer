@@ -1,16 +1,17 @@
 import { createSignal } from "solid-js";
-import type { PathConfig } from "../lib/jsonPath";
 import { extractValue } from "../lib/jsonPath";
+import type { PathConfig } from "../lib/jsonPath";
 
 const MAX_DEFAULT = 1000;
 
 export interface TopicChartConfig {
   topic: string;
-  pathConfig: PathConfig;
+  mode: "raw" | "path";
+  paths: string[]; // selected JSON paths (used when mode === "path")
 }
 
 export interface TopicSeries {
-  topic: string;
+  key: string; // series key: topic for raw, topic\0path for path mode
   timestamps: Float64Array;
   values: Float64Array;
   head: number;
@@ -22,121 +23,131 @@ const [chartActive, setChartActive] = createSignal(false);
 const [maxPoints, setMaxPoints] = createSignal(MAX_DEFAULT);
 
 // Plain objects (not Solid stores) to avoid reactivity issues
-// These are accessed synchronously from pushMessage
 let topicConfigs: Record<string, TopicChartConfig> = {};
 let seriesData: Record<string, TopicSeries> = {};
 
-// Version counter to trigger chart redraws
+// Version counter to trigger chart redraws + config version for UI
 const [seriesVersion, setSeriesVersion] = createSignal(0);
+const [configVersion, setConfigVersion] = createSignal(0);
+
+/** Build a series key from topic + optional path */
+export function seriesKey(topic: string, path?: string): string {
+  return path ? `${topic}\0${path}` : topic;
+}
+
+/** Get all series keys for a topic based on its config */
+function seriesKeysForTopic(topic: string): string[] {
+  const config = topicConfigs[topic];
+  if (!config) return [];
+  if (config.mode === "raw") return [seriesKey(topic)];
+  return config.paths.map((p) => seriesKey(topic, p));
+}
+
+function allocSeries(key: string) {
+  if (seriesData[key]) return;
+  const max = maxPoints();
+  seriesData[key] = {
+    key,
+    timestamps: new Float64Array(max),
+    values: new Float64Array(max),
+    head: 0,
+    count: 0,
+  };
+}
 
 export function useChartData() {
-  /**
-   * Initializes series for all pinned topics.
-   * Allocates ring buffers and default path configs.
-   * Called when the chart view is activated.
-   */
   function initSeries(pinnedTopics: Set<string>) {
     seriesData = {};
     topicConfigs = {};
 
     for (const topic of pinnedTopics) {
-      ensureSeries(topic);
-      topicConfigs[topic] = {
-        topic,
-        pathConfig: { mode: "raw", path: "" },
-      };
+      topicConfigs[topic] = { topic, mode: "raw", paths: [] };
+      allocSeries(seriesKey(topic));
     }
     setSeriesVersion(0);
+    setConfigVersion(0);
   }
 
-  /**
-   * Ensures a TopicSeries exists for the given topic.
-   * Idempotent: safe to call multiple times.
-   */
   function ensureSeries(topic: string) {
-    if (!seriesData[topic]) {
-      const max = maxPoints();
-      seriesData[topic] = {
-        topic,
-        timestamps: new Float64Array(max),
-        values: new Float64Array(max),
-        head: 0,
-        count: 0,
-      };
-    }
     if (!topicConfigs[topic]) {
-      topicConfigs[topic] = {
-        topic,
-        pathConfig: { mode: "raw", path: "" },
-      };
+      topicConfigs[topic] = { topic, mode: "raw", paths: [] };
+    }
+    // Allocate ring buffers for all series of this topic
+    for (const key of seriesKeysForTopic(topic)) {
+      allocSeries(key);
     }
   }
 
-  /**
-   * Updates the path config for a topic and notify chart to redraw.
-   */
-  function updateTopicConfig(topic: string, pathConfig: PathConfig) {
-    if (!topicConfigs[topic]) {
-      topicConfigs[topic] = { topic, pathConfig };
-    } else {
-      topicConfigs[topic].pathConfig = pathConfig;
+  function updateTopicConfig(topic: string, mode: "raw" | "path", paths: string[]) {
+    topicConfigs[topic] = { topic, mode, paths };
+    // Allocate buffers for any new paths
+    for (const key of seriesKeysForTopic(topic)) {
+      allocSeries(key);
     }
+    setConfigVersion((v) => v + 1);
     setSeriesVersion((v) => v + 1);
   }
 
-  /**
-   * Gets the current config for a topic (for UI binding).
-   */
-  function getTopicConfig(topic: string): PathConfig {
-    return topicConfigs[topic]?.pathConfig || { mode: "raw", path: "" };
+  function getTopicConfig(topic: string): TopicChartConfig {
+    return topicConfigs[topic] || { topic, mode: "raw", paths: [] };
   }
 
-  /**
-   * Pushes a new message into the series ring buffer.
-   * Only called when chartActive() is true.
-   * This is called from the worker message handler - must be synchronous.
-   */
-  function pushMessage(
-    topic: string,
-    payload: Uint8Array,
-    timestamp: number
-  ) {
+  /** Returns all series keys across all topics (in order for chart display) */
+  function getAllSeriesKeys(pinnedTopics: string[]): string[] {
+    const keys: string[] = [];
+    for (const topic of pinnedTopics) {
+      keys.push(...seriesKeysForTopic(topic));
+    }
+    return keys;
+  }
+
+  function pushMessage(topic: string, payload: Uint8Array, timestamp: number) {
     if (!chartActive()) return;
 
     const config = topicConfigs[topic];
-    if (!config) return; // topic not configured
-
-    const value = extractValue(payload, config.pathConfig);
-    if (value === null) return; // could not extract numeric value
-
-    let series = seriesData[topic];
-    if (!series) return; // series must be initialized via initSeries/ensureSeries
+    if (!config) return;
 
     const max = maxPoints();
-    series.timestamps[series.head % max] = timestamp;
-    series.values[series.head % max] = value;
-    series.head++;
-    if (series.count < max) series.count++;
+    let wrote = false;
 
-    setSeriesVersion((v) => v + 1);
+    if (config.mode === "raw") {
+      const value = extractValue(payload, { mode: "raw", path: "" });
+      if (value === null) return;
+      const key = seriesKey(topic);
+      const series = seriesData[key];
+      if (!series) return;
+      series.timestamps[series.head % max] = timestamp;
+      series.values[series.head % max] = value;
+      series.head++;
+      if (series.count < max) series.count++;
+      wrote = true;
+    } else {
+      // Path mode: extract each selected path
+      for (const path of config.paths) {
+        const value = extractValue(payload, { mode: "path", path });
+        if (value === null) continue;
+        const key = seriesKey(topic, path);
+        const series = seriesData[key];
+        if (!series) continue;
+        series.timestamps[series.head % max] = timestamp;
+        series.values[series.head % max] = value;
+        series.head++;
+        if (series.count < max) series.count++;
+        wrote = true;
+      }
+    }
+
+    if (wrote) setSeriesVersion((v) => v + 1);
   }
 
-  /**
-   * Extracts the logical chronological sequence from a topic's ring buffer.
-   * Returns plain arrays suitable for uplot consumption.
-   * Returns null if the topic has no series.
-   */
-  function getSeriesArrays(
-    topic: string
-  ): { timestamps: number[]; values: number[] } | null {
-    const series = seriesData[topic];
+  function getSeriesArrays(key: string): { timestamps: number[]; values: number[] } | null {
+    const series = seriesData[key];
     if (!series || series.count === 0) return null;
 
     const max = maxPoints();
     const timestamps: number[] = [];
     const values: number[] = [];
 
-    // Extract the logical sequence in chronological order
     const startIdx = series.head - series.count;
     for (let i = 0; i < series.count; i++) {
       const idx = (startIdx + i) % max;
@@ -147,14 +158,11 @@ export function useChartData() {
     return { timestamps, values };
   }
 
-  /**
-   * Clears all series data and resets the version counter.
-   * Called when the chart is deactivated.
-   */
   function clearAll() {
     seriesData = {};
     topicConfigs = {};
     setSeriesVersion(0);
+    setConfigVersion(0);
   }
 
   return {
@@ -163,10 +171,12 @@ export function useChartData() {
     maxPoints,
     setMaxPoints,
     seriesVersion,
+    configVersion,
     initSeries,
     ensureSeries,
     pushMessage,
     getSeriesArrays,
+    getAllSeriesKeys,
     getTopicConfig,
     updateTopicConfig,
     clearAll,
