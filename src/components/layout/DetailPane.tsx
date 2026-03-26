@@ -41,9 +41,10 @@ export default function DetailPane() {
     }
   }));
 
-  // Clear selection when switching modes; re-seed live topics when entering live mode
-  createEffect(() => {
-    const mode = logMode();
+  // Clear selection when switching modes; re-seed live topics when entering live mode.
+  // Use on() so the body runs inside untrack — prevents topicTree/selectedTopic from
+  // being tracked and causing spurious clears on every incoming message.
+  createEffect(on(logMode, (mode) => {
     setSelectedLogMsg(null);
     setSelectedLiveTopic(null);
     if (mode === "live") {
@@ -53,7 +54,7 @@ export default function DetailPane() {
         if (node) seedLiveFromTree(node);
       }
     }
-  });
+  }));
 
   function handleSelectMessage(msg: LoggedMessage | null) {
     if (logMode() === "live") {
