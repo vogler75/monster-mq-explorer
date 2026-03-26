@@ -109,6 +109,16 @@ export default function TopicTree() {
               <path d="M11 8l2 2-2 2" />
             </svg>
           </button>
+          <button
+            class="p-1 rounded shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
+            onClick={() => expandAll([])}
+            title="Collapse all"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 4h10M2 7h7M2 10h4" />
+              <path d="M12 10l-2-2 2-2" />
+            </svg>
+          </button>
         </div>
 
         {/* Group 3: Selection actions */}
