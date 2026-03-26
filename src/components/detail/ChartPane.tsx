@@ -44,6 +44,7 @@ const SERIES_COLORS = [
 interface TopicConfigPillProps {
   topic: string;
   label: string;
+  color: string;
   config: PathConfig;
   onConfigChange: (newConfig: PathConfig) => void;
   suggestedPaths: string[];
@@ -97,9 +98,10 @@ function TopicConfigPill(props: TopicConfigPillProps) {
     <div class="relative">
       <button
         ref={pillRef}
-        class="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors flex-shrink-0 whitespace-nowrap"
+        class="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors flex-shrink-0 whitespace-nowrap flex items-center gap-1.5"
         onClick={() => setShowPopover(!showPopover())}
       >
+        <span class="inline-block w-3 h-2 rounded-sm flex-shrink-0" style={{ "background-color": props.color }} />
         {topicLabel()}
       </button>
 
@@ -332,10 +334,11 @@ export default function ChartPane() {
           }
         >
           <>
-            {pinnedList().map((topic) => (
+            {pinnedList().map((topic, i) => (
               <TopicConfigPill
                 topic={topic}
                 label={labels().get(topic) || topic}
+                color={SERIES_COLORS[i % SERIES_COLORS.length]}
                 config={getTopicConfig(topic)}
                 onConfigChange={(newConfig) => {
                   updateTopicConfig(topic, newConfig);
