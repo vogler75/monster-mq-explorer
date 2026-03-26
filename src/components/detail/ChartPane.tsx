@@ -205,7 +205,9 @@ export default function ChartPane() {
     };
   }
 
-  // Build data for uplot: merged x-axis with all series
+  // Build data for uplot: merged x-axis with all series.
+  // Uses undefined (not null) for missing points so uplot connects
+  // through them instead of drawing gaps.
   function buildData(topics: string[]): uPlot.AlignedData {
     if (topics.length === 0) return [[]];
 
@@ -223,16 +225,18 @@ export default function ChartPane() {
 
     const xs = [...allTs].sort((a, b) => a - b);
 
-    // Map each topic to the unified x-axis
+    // Map each topic to the unified x-axis.
+    // undefined = "no data at this timestamp, connect through it"
+    // null      = "gap, break the line" (we don't want this)
     const ys = topics.map((topic) => {
       const data = seriesMap.get(topic);
-      if (!data) return xs.map(() => null);
+      if (!data) return xs.map(() => undefined);
       const map = new Map(data.timestamps.map((t, i) => [t, data.values[i]]));
-      return xs.map((t) => map.get(t) ?? null);
+      return xs.map((t) => map.has(t) ? map.get(t)! : undefined);
     });
 
     // Convert timestamps from ms to Unix seconds
-    return [xs.map((t) => t / 1000), ...ys];
+    return [xs.map((t) => t / 1000), ...ys] as uPlot.AlignedData;
   }
 
   onMount(() => {
