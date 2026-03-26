@@ -54,26 +54,34 @@ export function useChartData() {
    * Idempotent: safe to call multiple times.
    */
   function ensureSeries(topic: string) {
-    if (seriesData[topic]) return;
-    const max = maxPoints();
-    seriesData[topic] = {
-      topic,
-      timestamps: new Float64Array(max),
-      values: new Float64Array(max),
-      head: 0,
-      count: 0,
-    };
+    if (!seriesData[topic]) {
+      const max = maxPoints();
+      seriesData[topic] = {
+        topic,
+        timestamps: new Float64Array(max),
+        values: new Float64Array(max),
+        head: 0,
+        count: 0,
+      };
+    }
+    if (!topicConfigs[topic]) {
+      topicConfigs[topic] = {
+        topic,
+        pathConfig: { mode: "raw", path: "" },
+      };
+    }
   }
 
   /**
    * Updates the path config for a topic and notify chart to redraw.
    */
   function updateTopicConfig(topic: string, pathConfig: PathConfig) {
-    if (topicConfigs[topic]) {
+    if (!topicConfigs[topic]) {
+      topicConfigs[topic] = { topic, pathConfig };
+    } else {
       topicConfigs[topic].pathConfig = pathConfig;
-      // Force chart redraw with new config
-      setSeriesVersion((v) => v + 1);
     }
+    setSeriesVersion((v) => v + 1);
   }
 
   /**
