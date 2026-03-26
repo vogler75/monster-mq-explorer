@@ -313,14 +313,6 @@ export default function ChartPane() {
     uplotInstance = new uPlot(opts, data, containerRef);
   });
 
-  const hasData = createMemo(() => {
-    for (const topic of pinnedList()) {
-      const data = getSeriesArrays(topic);
-      if (data && data.timestamps.length > 0) return true;
-    }
-    return false;
-  });
-
   return (
     <div class="flex flex-col h-full bg-slate-900">
       {/* Config bar */}
@@ -380,11 +372,6 @@ export default function ChartPane() {
           class="absolute inset-0"
         />
 
-        <Show when={!hasData()}>
-          <div class="absolute inset-0 flex items-center justify-center text-slate-500 text-sm pointer-events-none z-10">
-            Waiting for data...
-          </div>
-        </Show>
       </div>
     </div>
   );
