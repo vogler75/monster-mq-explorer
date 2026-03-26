@@ -38,8 +38,13 @@ export default function MessageDetail(props: Props) {
   const [activeTab, setActiveTab] = createSignal<Tab>("formatted");
   const [copyFeedback, setCopyFeedback] = createSignal(false);
 
+  function getDisplayTopic(): string {
+    // Use the message's topic if available (table selection), otherwise use node's topic (tree selection)
+    return activeMessage()?.topic ?? props.node.fullTopic;
+  }
+
   function getCleanTopic(): string {
-    const fullTopic = props.node.fullTopic;
+    const fullTopic = getDisplayTopic();
     const connId = activeConnectionId();
     if (!connId) return fullTopic;
     const conn = getConnection(connId);
@@ -118,7 +123,7 @@ export default function MessageDetail(props: Props) {
         <div class="flex items-start justify-between gap-2">
           <div class="flex items-start gap-2 flex-1 min-w-0">
             <div class="text-sm font-mono font-medium text-slate-200 break-all">
-              {props.node.fullTopic}
+              {getDisplayTopic()}
             </div>
             <button
               class="shrink-0 p-1 rounded text-slate-500 hover:text-slate-300 transition-colors"
