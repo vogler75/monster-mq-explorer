@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { extractValue } from "../lib/jsonPath";
+import { extractValue, collectJsonPaths } from "../lib/jsonPath";
 import type { PathConfig } from "../lib/jsonPath";
 
 const MAX_DEFAULT = 1000;
@@ -55,22 +55,54 @@ function allocSeries(key: string) {
   };
 }
 
+/**
+ * Auto-detect config for a topic based on its latest payload.
+ * If the payload is a raw number, use raw mode.
+ * If it's JSON and has a "value" field (case-insensitive), auto-select it as path mode.
+ */
+function autoDetectConfig(payload: Uint8Array | undefined): { mode: "raw" | "path"; paths: string[] } {
+  if (!payload) return { mode: "raw", paths: [] };
+
+  // Try raw first — if it parses as a number, use raw mode
+  const rawVal = extractValue(payload, { mode: "raw", path: "" });
+  if (rawVal !== null) return { mode: "raw", paths: [] };
+
+  // Try JSON — look for a "value" field (case-insensitive)
+  try {
+    const text = new TextDecoder().decode(payload);
+    const obj = JSON.parse(text);
+    const allPaths = collectJsonPaths(obj);
+    const valuePath = allPaths.find((p) => p.toLowerCase() === "value");
+    if (valuePath) {
+      return { mode: "path", paths: [valuePath] };
+    }
+  } catch {
+    // not JSON
+  }
+
+  return { mode: "raw", paths: [] };
+}
+
 export function useChartData() {
-  function initSeries(pinnedTopics: Set<string>) {
+  function initSeries(pinnedTopics: Set<string>, getPayload?: (topic: string) => Uint8Array | undefined) {
     seriesData = {};
     topicConfigs = {};
 
     for (const topic of pinnedTopics) {
-      topicConfigs[topic] = { topic, mode: "raw", paths: [] };
-      allocSeries(seriesKey(topic));
+      const detected = autoDetectConfig(getPayload?.(topic));
+      topicConfigs[topic] = { topic, ...detected };
+      for (const key of seriesKeysForTopic(topic)) {
+        allocSeries(key);
+      }
     }
     setSeriesVersion(0);
     setConfigVersion(0);
   }
 
-  function ensureSeries(topic: string) {
+  function ensureSeries(topic: string, payload?: Uint8Array) {
     if (!topicConfigs[topic]) {
-      topicConfigs[topic] = { topic, mode: "raw", paths: [] };
+      const detected = autoDetectConfig(payload);
+      topicConfigs[topic] = { topic, ...detected };
     }
     // Allocate ring buffers for all series of this topic
     for (const key of seriesKeysForTopic(topic)) {

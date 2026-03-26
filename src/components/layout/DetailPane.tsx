@@ -49,7 +49,7 @@ export default function DetailPane() {
   createEffect(on(pinnedTopics, (pinned) => {
     if (!chartActive()) return;
     for (const topic of pinned) {
-      ensureSeries(topic);
+      ensureSeries(topic, liveTopics[topic]?.payload);
     }
   }));
 
@@ -153,7 +153,7 @@ export default function DetailPane() {
               clearAll();
               if (detailMode() === "chart") setDetailMode("detail");
             } else {
-              initSeries(pinnedTopics());
+              initSeries(pinnedTopics(), (t) => liveTopics[t]?.payload);
               setChartActive(true);
               setDetailMode("chart");
             }
