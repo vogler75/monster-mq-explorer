@@ -118,6 +118,30 @@ export default function HistoryPane() {
     }
   }
 
+  // Resizable column widths
+  const [colTimestamp, setColTimestamp] = createSignal(180);
+  const [colTopic, setColTopic] = createSignal(200);
+
+  function startColResize(setter: (v: number) => void, e: MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const th = (e.target as HTMLElement).parentElement!;
+    const startW = th.getBoundingClientRect().width;
+    function onMove(e: MouseEvent) {
+      setter(Math.max(60, startW + e.clientX - startX));
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }
+
   const inputClass = "px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500";
 
   return (
@@ -206,11 +230,22 @@ export default function HistoryPane() {
             </Show>
           }
         >
-          <table class="w-full text-xs">
+          <table class="w-full text-xs" style={{ "table-layout": "fixed" }}>
+            <colgroup>
+              <col style={{ width: `${colTimestamp()}px` }} />
+              <col style={{ width: `${colTopic()}px` }} />
+              <col />
+            </colgroup>
             <thead class="sticky top-0 bg-slate-800 z-10">
               <tr class="border-b border-slate-700">
-                <th class="text-left px-3 py-1.5 text-slate-400 font-medium w-44">Timestamp</th>
-                <th class="text-left px-3 py-1.5 text-slate-400 font-medium w-48">Topic</th>
+                <th class="text-left px-3 py-1.5 text-slate-400 font-medium relative">
+                  Timestamp
+                  <div class="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-500/50" onMouseDown={[startColResize, setColTimestamp]} />
+                </th>
+                <th class="text-left px-3 py-1.5 text-slate-400 font-medium relative">
+                  Topic
+                  <div class="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-500/50" onMouseDown={[startColResize, setColTopic]} />
+                </th>
                 <th class="text-left px-3 py-1.5 text-slate-400 font-medium">Payload</th>
               </tr>
             </thead>
@@ -218,9 +253,9 @@ export default function HistoryPane() {
               <For each={results()}>
                 {(msg) => (
                   <tr class="border-b border-slate-700/50 hover:bg-slate-800/50">
-                    <td class="px-3 py-1 text-slate-400 font-mono whitespace-nowrap">{formatTs(msg.timestamp)}</td>
-                    <td class="px-3 py-1 text-slate-300 font-mono truncate max-w-[200px]" title={msg.topic}>{msg.topic}</td>
-                    <td class="px-3 py-1 text-slate-300 font-mono truncate max-w-[400px]" title={msg.payload}>{msg.payload}</td>
+                    <td class="px-3 py-1 text-slate-400 font-mono whitespace-nowrap overflow-hidden text-ellipsis">{formatTs(msg.timestamp)}</td>
+                    <td class="px-3 py-1 text-slate-300 font-mono overflow-hidden text-ellipsis whitespace-nowrap" title={msg.topic}>{msg.topic}</td>
+                    <td class="px-3 py-1 text-slate-300 font-mono overflow-hidden text-ellipsis whitespace-nowrap" title={msg.payload}>{msg.payload}</td>
                   </tr>
                 )}
               </For>
