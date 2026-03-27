@@ -78,6 +78,9 @@ export default function MessageTable(props: Props) {
   const [jsonColumnsEnabled, setJsonColumnsEnabled] = createSignal(false);
   const [jsonColWidths, setJsonColWidths] = createStore<Record<string, number>>({});
 
+  // Filter
+  const [topicFilter, setTopicFilter] = createSignal("");
+
   // Watchlist UI state
   const [showWatchlistMenu, setShowWatchlistMenu] = createSignal(false);
   const [saveNameInput, setSaveNameInput] = createSignal("");
@@ -134,6 +137,11 @@ export default function MessageTable(props: Props) {
       } else {
         msgs = logOrder() === "newest-top" ? [...msgs].reverse() : msgs;
       }
+    }
+    // Apply topic filter
+    const filter = topicFilter().toLowerCase();
+    if (filter) {
+      msgs = msgs.filter((m) => m.topic.toLowerCase().includes(filter));
     }
     return msgs;
   });
@@ -477,17 +485,40 @@ export default function MessageTable(props: Props) {
           {displayMessages().length} rows
           {hasPinned() && <span class="ml-1 text-amber-500">{pinnedTopics().size} sticky</span>}
         </span>
-        {logMode() === "history" && (
-          <label class="flex items-center gap-1 ml-auto">
-            <span class="text-slate-500">Max</span>
+
+        <div class="flex items-center gap-1 ml-auto">
+          {/* Topic filter */}
+          <div class="relative">
             <input
-              type="number"
-              class="w-16 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500"
-              value={logMaxRows()}
-              onBlur={(e) => setLogMaxRows(Math.max(10, parseInt(e.currentTarget.value) || 500))}
+              type="text"
+              placeholder="Filter…"
+              value={topicFilter()}
+              onInput={(e) => setTopicFilter(e.currentTarget.value)}
+              class="w-28 px-1.5 py-0.5 bg-slate-700 border border-slate-600 rounded text-slate-200 text-xs outline-none focus:border-blue-500 focus:w-40 transition-all placeholder-slate-500"
             />
-          </label>
-        )}
+            <Show when={topicFilter()}>
+              <button
+                class="absolute right-1 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                onClick={() => setTopicFilter("")}
+              >
+                <svg class="w-3 h-3" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M2 2l6 6M8 2l-6 6" />
+                </svg>
+              </button>
+            </Show>
+          </div>
+          {logMode() === "history" && (
+            <label class="flex items-center gap-1">
+              <span class="text-slate-500">Max</span>
+              <input
+                type="number"
+                class="w-16 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500"
+                value={logMaxRows()}
+                onBlur={(e) => setLogMaxRows(Math.max(10, parseInt(e.currentTarget.value) || 500))}
+              />
+            </label>
+          )}
+        </div>
       </div>
 
       {/* Column headers */}
