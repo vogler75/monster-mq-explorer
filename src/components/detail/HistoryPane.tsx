@@ -4,6 +4,7 @@ import { useConnections } from "../../stores/connections";
 import { useTabPinnedTopics } from "../../stores/tabStore";
 import { fetchArchivedMessages } from "../../lib/monstermq-api";
 import { browseLoggingTags, queryLoggedTagValues, type BrowseConfig } from "../../lib/winccua-api";
+import { queryDpGetPeriod, type BrowseConfig as OaBrowseConfig } from "../../lib/winccoa-api";
 
 function toLocalDatetime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -45,10 +46,18 @@ interface WinccUaGroup {
   topics: string[]; // cleaned (prefix stripped) — these are topic paths, need conversion to tag names
 }
 
-type HistoryGroup = MonsterMqGroup | WinccUaGroup;
+interface WinccOaGroup {
+  type: "winccoa";
+  connectionId: string;
+  connectionName: string;
+  browseConfig: OaBrowseConfig;
+  topics: string[];
+}
+
+type HistoryGroup = MonsterMqGroup | WinccUaGroup | WinccOaGroup;
 
 export default function HistoryPane() {
-  const { getArchiveGroups, getLoggingTags, setLoggingTags, getWinccToken, getOriginalTagName } = useUI();
+  const { getArchiveGroups, getLoggingTags, setLoggingTags, getWinccToken, getOriginalTagName, getTopicTagNameMap } = useUI();
   const { connections } = useConnections();
   const { pinnedTopics } = useTabPinnedTopics();
 
@@ -69,8 +78,9 @@ export default function HistoryPane() {
       if (isMqtt) {
         matching = pinned.filter((t) => t.startsWith(prefix) && !claimed.has(t));
       } else {
-        // For WinCC, all unclaimed topics are candidates
-        matching = pinned.filter((t) => !claimed.has(t));
+        // For WinCC UA/OA, only match topics that exist in this connection's tag mapping
+        const tagMap = getTopicTagNameMap(conn.id);
+        matching = pinned.filter((t) => !claimed.has(t) && tagMap.has(t));
       }
       if (matching.length === 0) continue;
 
@@ -101,6 +111,22 @@ export default function HistoryPane() {
             password: conn.password,
           },
           tagPathSplit: conn.tagPathSplit,
+          topics,
+        });
+      } else if (conn.connectionType === "winccoa") {
+        for (const t of matching) claimed.add(t);
+        result.push({
+          type: "winccoa",
+          connectionId: conn.id,
+          connectionName: conn.name,
+          browseConfig: {
+            host: conn.host,
+            port: conn.port,
+            protocol: conn.protocol,
+            path: conn.path,
+            username: conn.username,
+            password: conn.password,
+          },
           topics,
         });
       }
@@ -232,6 +258,31 @@ export default function HistoryPane() {
                 payload: typeof v.value === "object" ? JSON.stringify(v.value) : String(v.value ?? ""),
               });
             }
+          } else if (g.type === "winccoa") {
+            // Resolve original DP element names
+            const dpeNames: string[] = [];
+            const dpeToTopic = new Map<string, string>();
+            for (const topic of g.topics) {
+              const dpeName = getOriginalTagName(g.connectionId, topic) ?? topic;
+              dpeNames.push(dpeName);
+              dpeToTopic.set(dpeName, topic);
+            }
+
+            const token = getWinccToken(g.connectionId);
+            const values = await queryDpGetPeriod(
+              g.browseConfig,
+              dpeNames,
+              startTime,
+              endTime,
+              token,
+            );
+            for (const v of values) {
+              allRows.push({
+                timestamp: new Date(v.timestamp).getTime(),
+                topic: dpeToTopic.get(v.dpeName) ?? v.dpeName,
+                payload: typeof v.value === "object" ? JSON.stringify(v.value) : String(v.value ?? ""),
+              });
+            }
           }
         }),
       );
@@ -347,39 +398,7 @@ export default function HistoryPane() {
         <div class="px-3 py-1.5 border-b border-slate-700 shrink-0 space-y-1.5 max-h-40 overflow-auto">
           <For each={historyGroups()}>
             {(group) => (
-              <Show when={group.type === "monstermq"} fallback={
-                /* WinCC UA: per-topic logging tag selector */
-                <div>
-                  <div class="text-xs text-slate-400 font-medium mb-1">{group.connectionName} <span class="text-slate-500 font-normal">(WinCC Unified)</span></div>
-                  <div class="space-y-0.5 ml-2">
-                    <For each={group.topics}>
-                      {(topic) => {
-                        const tagName = () => topic;
-                        const loggingTags = () => getLoggingTags(group.connectionId, tagName());
-                        return (
-                          <div class="flex items-center gap-1.5 text-xs">
-                            <span class="text-slate-400 font-mono truncate max-w-[200px]" title={tagName()}>{topic}</span>
-                            <Show when={loggingTags().length > 0} fallback={
-                              <span class="text-slate-500 italic">no logging tags</span>
-                            }>
-                              <select
-                                class={inputClass + " w-44"}
-                                value={getSelectedLoggingTag(group.connectionId, tagName())}
-                                onChange={(e) => setSelectedLoggingTag(group.connectionId, tagName(), e.currentTarget.value)}
-                              >
-                                <For each={loggingTags()}>
-                                  {(lt) => <option value={lt}>{lt.split(":").pop()}</option>}
-                                </For>
-                              </select>
-                            </Show>
-                          </div>
-                        );
-                      }}
-                    </For>
-                  </div>
-                </div>
-              }>
-                {/* MonsterMQ: per-connection archive group */}
+              group.type === "monstermq" ? (
                 <div class="flex items-center gap-1.5">
                   <span class="text-xs text-slate-400 font-medium">{group.connectionName}</span>
                   <select
@@ -393,7 +412,41 @@ export default function HistoryPane() {
                   </select>
                   <span class="text-xs text-slate-500">({group.topics.length} topic{group.topics.length !== 1 ? "s" : ""})</span>
                 </div>
-              </Show>
+              ) : group.type === "winccua" ? (
+                <div>
+                  <div class="text-xs text-slate-400 font-medium mb-1">{group.connectionName} <span class="text-slate-500 font-normal">(WinCC Unified)</span></div>
+                  <div class="space-y-0.5 ml-2">
+                    <For each={group.topics}>
+                      {(topic) => {
+                        const loggingTags = () => getLoggingTags(group.connectionId, topic);
+                        return (
+                          <div class="flex items-center gap-1.5 text-xs">
+                            <span class="text-slate-400 font-mono truncate max-w-[200px]" title={topic}>{topic}</span>
+                            <Show when={loggingTags().length > 0} fallback={
+                              <span class="text-slate-500 italic">no logging tags</span>
+                            }>
+                              <select
+                                class={inputClass + " w-44"}
+                                value={getSelectedLoggingTag(group.connectionId, topic)}
+                                onChange={(e) => setSelectedLoggingTag(group.connectionId, topic, e.currentTarget.value)}
+                              >
+                                <For each={loggingTags()}>
+                                  {(lt) => <option value={lt}>{lt.split(":").pop()}</option>}
+                                </For>
+                              </select>
+                            </Show>
+                          </div>
+                        );
+                      }}
+                    </For>
+                  </div>
+                </div>
+              ) : (
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs text-slate-400 font-medium">{group.connectionName}</span>
+                  <span class="text-xs text-slate-500">(WinCC OA — {group.topics.length} topic{group.topics.length !== 1 ? "s" : ""})</span>
+                </div>
+              )
             )}
           </For>
         </div>

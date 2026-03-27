@@ -8,6 +8,7 @@ import { useUI } from "./stores/ui";
 import { broadcastMessages, broadcastChartMessage } from "./stores/tabStore";
 import { fetchArchiveGroups } from "./lib/monstermq-api";
 import { login as winccUaLogin, loginAndBrowse as winccUaBrowse } from "./lib/winccua-api";
+import { login as winccOaLogin, loginAndBrowse as winccOaBrowse } from "./lib/winccoa-api";
 import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
@@ -153,6 +154,40 @@ export default function App() {
           setTopicTagNameMap(connectionId, mapping);
         } catch (err) {
           console.error(`[WinCC UA:${connectionId}] Failed to build tag mapping:`, err);
+        }
+      })();
+    }
+
+    if (config.connectionType === "winccoa") {
+      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol, path: config.path, username: config.username, password: config.password };
+      const splitters = [...new Set([":"].concat([...config.tagPathSplit]))];
+      function oaTagNameToTopic(name: string): string {
+        let result = name;
+        for (const s of splitters) result = result.split(s).join("/");
+        while (result.endsWith("/")) result = result.slice(0, -1);
+        return result;
+      }
+      const nameFilters = config.subscriptions
+        .filter((s) => !s.tags || s.tags.length === 0)
+        .map((s) => s.topic.trim())
+        .filter((t) => t.length > 0);
+
+      (async () => {
+        try {
+          const token = await winccOaLogin(browseConfig);
+          if (token) setWinccToken(connectionId, token);
+
+          let browsedTags: string[] = [];
+          if (nameFilters.length > 0) {
+            browsedTags = await winccOaBrowse(browseConfig, nameFilters);
+          }
+          const mapping = new Map<string, string>();
+          for (const tag of browsedTags) {
+            mapping.set(oaTagNameToTopic(tag), tag);
+          }
+          setTopicTagNameMap(connectionId, mapping);
+        } catch (err) {
+          console.error(`[WinCC OA:${connectionId}] Failed to build tag mapping:`, err);
         }
       })();
     }

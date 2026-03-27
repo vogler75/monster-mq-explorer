@@ -113,6 +113,9 @@ export function useUI() {
     getOriginalTagName(connectionId: string, topic: string): string | undefined {
       return topicTagNameMap().get(connectionId)?.get(topic);
     },
+    getTopicTagNameMap(connectionId: string): Map<string, string> {
+      return topicTagNameMap().get(connectionId) ?? new Map();
+    },
     setTopicTagNameMap(connectionId: string, mapping: Map<string, string>) {
       setTopicTagNameMap((prev) => new Map(prev).set(connectionId, mapping));
     },
