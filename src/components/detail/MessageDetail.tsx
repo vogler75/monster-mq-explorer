@@ -11,7 +11,9 @@ import {
 import { collectRetainedTopics } from "../../lib/topic-tree";
 import { useUI } from "../../stores/ui";
 import { useConnections } from "../../stores/connections";
+import { useTabChartData, useTabPinnedTopics, useTabMessageLog } from "../../stores/tabStore";
 import JsonViewer from "./JsonViewer";
+import ChartPane from "./ChartPane";
 
 type Tab = "formatted" | "raw" | "hex" | "pic";
 
@@ -27,20 +29,26 @@ function detectMimeType(payload: Uint8Array): string {
 }
 
 interface Props {
-  node: TopicNode;
+  node?: TopicNode;
   overrideMessage?: LoggedMessage | null;
+  detailMode?: "detail" | "chart";
+  onDetailModeChange?: (mode: "detail" | "chart") => void;
 }
 
 export default function MessageDetail(props: Props) {
   const { publish, getConnectionStatus } = useUI();
   const { activeConnectionId, getConnection } = useConnections();
   const connectionStatus = () => activeConnectionId() ? getConnectionStatus(activeConnectionId()!) : "disconnected";
+  const chartData = useTabChartData();
+  const { pinnedTopics, pinTopics } = useTabPinnedTopics();
+  const { liveTopics } = useTabMessageLog();
   const [activeTab, setActiveTab] = createSignal<Tab>("formatted");
   const [copyFeedback, setCopyFeedback] = createSignal(false);
+  const mode = () => props.detailMode ?? "detail";
 
   function getDisplayTopic(): string {
     // Use the message's topic if available (table selection), otherwise use node's topic (tree selection)
-    return activeMessage()?.topic ?? props.node.fullTopic;
+    return activeMessage()?.topic ?? props.node?.fullTopic ?? "";
   }
 
   function getCleanTopic(): string {
@@ -62,12 +70,12 @@ export default function MessageDetail(props: Props) {
   }
 
   function clearRetained() {
-    publish(props.node.fullTopic, "", 1, true);
+    if (props.node) publish(props.node.fullTopic, "", 1, true);
   }
 
-  const activeMessage = createMemo(() => props.overrideMessage ?? props.node.lastMessage);
+  const activeMessage = createMemo(() => props.overrideMessage ?? props.node?.lastMessage ?? null);
 
-  const retainedTopicsBelow = createMemo(() => collectRetainedTopics(props.node));
+  const retainedTopicsBelow = createMemo(() => props.node ? collectRetainedTopics(props.node) : []);
 
   function clearAllRetainedBelow() {
     for (const topic of retainedTopicsBelow()) {
@@ -82,6 +90,34 @@ export default function MessageDetail(props: Props) {
   });
 
   const parsedJson = createMemo(() => tryParseJson(payloadStr()));
+
+  /** Add a JSON path from the current topic to the chart */
+  function handleChartPath(path: string) {
+    const topic = getDisplayTopic();
+    if (!topic) return;
+
+    // Pin the topic if not already
+    if (!pinnedTopics().has(topic)) {
+      pinTopics([topic]);
+    }
+
+    // Activate chart if not already
+    if (!chartData.chartActive()) {
+      chartData.initSeries(pinnedTopics(), (t) => liveTopics[t]?.payload);
+      chartData.setChartActive(true);
+    }
+
+    // Ensure series exists for this topic
+    const msg = activeMessage();
+    chartData.ensureSeries(topic, msg?.payload);
+
+    // Add the path to the topic's chart config
+    const config = chartData.getTopicConfig(topic);
+    const existingPaths = config.paths || [];
+    if (!existingPaths.includes(path)) {
+      chartData.updateTopicConfig(topic, "path", [...existingPaths, path]);
+    }
+  }
 
   const hexStr = createMemo(() => {
     const msg = activeMessage();
@@ -118,19 +154,64 @@ export default function MessageDetail(props: Props) {
 
   return (
     <div class="h-full flex flex-col">
-      {/* Topic header */}
-      <div class="px-4 py-3 border-b border-slate-700 bg-slate-800/50">
-        <div class="flex items-start justify-between gap-2">
-          <div class="flex items-start gap-2 flex-1 min-w-0">
-            <div class="text-sm font-mono font-medium text-slate-200 break-all">
-              {getDisplayTopic()}
-            </div>
+      {/* Tabs: Detail / Graph | Formatted / Raw / Hex / Pic | topic name */}
+      <div class="flex items-center border-b border-slate-700 shrink-0">
+        <button
+          class="px-4 py-1.5 text-xs transition-colors"
+          classList={{
+            "text-blue-400 border-b-2 border-blue-400": mode() === "detail",
+            "text-slate-400 hover:text-slate-200": mode() !== "detail",
+          }}
+          onClick={() => props.onDetailModeChange?.("detail")}
+        >
+          Detail
+        </button>
+        <button
+          class="px-4 py-1.5 text-xs transition-colors"
+          classList={{
+            "text-blue-400 border-b-2 border-blue-400": mode() === "chart",
+            "text-slate-400 hover:text-slate-200": mode() !== "chart",
+          }}
+          onClick={() => {
+            if (!chartData.chartActive()) {
+              chartData.initSeries(pinnedTopics(), (t) => liveTopics[t]?.payload);
+              chartData.setChartActive(true);
+            }
+            props.onDetailModeChange?.("chart");
+          }}
+        >
+          Graph
+        </button>
+        <Show when={mode() === "detail"}>
+          <div class="w-px self-stretch bg-slate-600 shrink-0 mx-1" />
+          {tabs.map((tab) => (
             <button
-              class="shrink-0 p-1 rounded text-slate-500 hover:text-slate-300 transition-colors"
+              class="px-3 py-1.5 text-xs transition-colors shrink-0"
+              classList={{
+                "text-slate-200 border-b-2 border-slate-400":
+                  activeTab() === tab.id,
+                "text-slate-500 hover:text-slate-300": activeTab() !== tab.id,
+              }}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </Show>
+
+        {/* Topic name + info, pushed to the right */}
+        <Show when={getDisplayTopic()}>
+          <div class="flex-1" />
+          <div class="flex items-center gap-1.5 px-3 shrink-0 min-w-0">
+            <span class="text-xs font-mono text-slate-400 truncate max-w-[250px]" title={getDisplayTopic()}>
+              {getDisplayTopic()}
+            </span>
+            <button
+              class="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-300 transition-colors"
               title="Copy topic (without connection name)"
               onClick={copyTopicToClipboard}
             >
-              <svg class="w-4 h-4" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="1" y="5" width="8" height="8" rx="1" />
                 <path d="M5 5V3a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-2" />
               </svg>
@@ -138,140 +219,105 @@ export default function MessageDetail(props: Props) {
             <Show when={copyFeedback()}>
               <span class="text-xs text-green-400 shrink-0">Copied!</span>
             </Show>
+            <Show when={activeMessage()}>
+              {(msg) => (
+                <span class="text-xs text-slate-500 shrink-0">
+                  {formatBytes(msg().payload.byteLength)}
+                  <Show when={msg().retain}>
+                    <span class="text-amber-400 ml-1.5">R</span>
+                  </Show>
+                </span>
+              )}
+            </Show>
           </div>
-          <Show when={connectionStatus() === "connected"}>
-            <div class="flex gap-1.5 shrink-0">
-              <Show when={activeMessage()?.retain}>
-                <button
-                  class="px-2 py-0.5 text-xs rounded bg-amber-900/50 text-amber-400 hover:bg-amber-800/60 border border-amber-700/50 transition-colors"
-                  title="Publish empty payload with retain=true to clear this retained message"
-                  onClick={clearRetained}
-                >
-                  Clear retained
-                </button>
-              </Show>
-              <Show when={retainedTopicsBelow().length > 0}>
-                <button
-                  class="px-2 py-0.5 text-xs rounded bg-red-900/50 text-red-400 hover:bg-red-800/60 border border-red-700/50 transition-colors"
-                  title={`Clear all ${retainedTopicsBelow().length} retained messages below this node`}
-                  onClick={clearAllRetainedBelow}
-                >
-                  Clear all retained ({retainedTopicsBelow().length})
-                </button>
-              </Show>
-            </div>
-          </Show>
-        </div>
-        <Show when={activeMessage()}>
-          {(msg) => (
-            <div class="flex gap-4 mt-1.5 text-xs text-slate-400">
-              <span>QoS {msg().qos}</span>
-              <Show when={msg().retain}>
-                <span class="text-amber-400">retained</span>
-              </Show>
-              <span>{formatBytes(msg().payload.byteLength)}</span>
-              <span>{formatTimestamp(msg().timestamp)}</span>
-              <Show when={!props.overrideMessage}>
-                <span>{props.node.messageCount.toLocaleString()} total messages</span>
-              </Show>
-            </div>
-          )}
         </Show>
-      </div>
-
-      {/* Tabs */}
-      <div class="flex border-b border-slate-700">
-        {tabs.map((tab) => (
-          <button
-            class="px-4 py-1.5 text-xs transition-colors"
-            classList={{
-              "text-blue-400 border-b-2 border-blue-400":
-                activeTab() === tab.id,
-              "text-slate-400 hover:text-slate-200": activeTab() !== tab.id,
-            }}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
       </div>
 
       {/* Content */}
-      <div class="flex-1 overflow-auto p-4">
-        <Show when={activeMessage()} fallback={
-          <div class="text-slate-500 text-sm">No messages received yet</div>
-        }>
-          {activeTab() === "formatted" ? (
-            <Show
-              when={parsedJson() !== null}
-              fallback={
-                <pre class="text-sm font-mono text-slate-300 whitespace-pre-wrap break-all">
-                  {payloadStr()}
-                </pre>
-              }
-            >
-              <JsonViewer data={parsedJson()!} />
-            </Show>
-          ) : activeTab() === "raw" ? (
-            <pre class="text-sm font-mono text-slate-300 whitespace-pre-wrap break-all">
-              {payloadStr()}
-            </pre>
-          ) : activeTab() === "hex" ? (
-            <pre class="text-sm font-mono text-slate-400 whitespace-pre-wrap break-all">
-              {hexStr()}
-            </pre>
-          ) : (
-            <div class="flex flex-col gap-3">
-              <div class="flex items-center gap-2">
-                <button
-                  class="px-2.5 py-1 text-xs rounded transition-colors"
-                  classList={{
-                    "bg-blue-600/20 text-blue-400 border border-blue-600/40": picLive(),
-                    "bg-slate-700 text-slate-300 hover:bg-slate-600": !picLive(),
-                  }}
-                  onClick={() => {
-                    const next = !picLive();
-                    setPicLive(next);
-                    if (next) {
-                      const msg = activeMessage();
-                      if (msg) buildPicUrl(msg.payload);
-                    }
-                  }}
-                >
-                  Live
-                </button>
-                <Show when={!picLive()}>
+      <Show
+        when={mode() === "detail"}
+        fallback={
+          <div class="flex-1 overflow-hidden min-h-0">
+            <ChartPane />
+          </div>
+        }
+      >
+        <div class="flex-1 overflow-auto pl-1 pr-4 py-4">
+          <Show when={activeMessage()} fallback={
+            <div class="text-slate-500 text-sm">No messages received yet</div>
+          }>
+            {activeTab() === "formatted" ? (
+              <Show
+                when={parsedJson() !== null}
+                fallback={
+                  <pre class="text-sm font-mono text-slate-300 whitespace-pre-wrap break-all">
+                    {payloadStr()}
+                  </pre>
+                }
+              >
+                <JsonViewer data={parsedJson()!} onChartPath={handleChartPath} />
+              </Show>
+            ) : activeTab() === "raw" ? (
+              <pre class="text-sm font-mono text-slate-300 whitespace-pre-wrap break-all">
+                {payloadStr()}
+              </pre>
+            ) : activeTab() === "hex" ? (
+              <pre class="text-sm font-mono text-slate-400 whitespace-pre-wrap break-all">
+                {hexStr()}
+              </pre>
+            ) : (
+              <div class="flex flex-col gap-3">
+                <div class="flex items-center gap-2">
                   <button
-                    class="px-2.5 py-1 text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 rounded transition-colors"
-                    onClick={() => { const msg = activeMessage(); if (msg) buildPicUrl(msg.payload); }}
+                    class="px-2.5 py-1 text-xs rounded transition-colors"
+                    classList={{
+                      "bg-blue-600/20 text-blue-400 border border-blue-600/40": picLive(),
+                      "bg-slate-700 text-slate-300 hover:bg-slate-600": !picLive(),
+                    }}
+                    onClick={() => {
+                      const next = !picLive();
+                      setPicLive(next);
+                      if (next) {
+                        const msg = activeMessage();
+                        if (msg) buildPicUrl(msg.payload);
+                      }
+                    }}
                   >
-                    Show
+                    Live
                   </button>
+                  <Show when={!picLive()}>
+                    <button
+                      class="px-2.5 py-1 text-xs bg-slate-700 text-slate-300 hover:bg-slate-600 rounded transition-colors"
+                      onClick={() => { const msg = activeMessage(); if (msg) buildPicUrl(msg.payload); }}
+                    >
+                      Show
+                    </button>
+                  </Show>
+                </div>
+                <Show when={picUrl()} fallback={
+                  <div class="text-slate-500 text-sm">Press Show or enable Live to render the payload as an image.</div>
+                }>
+                  {(url) => (
+                    <img
+                      src={url()}
+                      alt="payload"
+                      class="max-w-full rounded border border-slate-700"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).replaceWith(
+                          Object.assign(document.createElement("div"), {
+                            className: "text-slate-500 text-sm",
+                            textContent: "Payload could not be displayed as an image.",
+                          })
+                        );
+                      }}
+                    />
+                  )}
                 </Show>
               </div>
-              <Show when={picUrl()} fallback={
-                <div class="text-slate-500 text-sm">Press Show or enable Live to render the payload as an image.</div>
-              }>
-                {(url) => (
-                  <img
-                    src={url()}
-                    alt="payload"
-                    class="max-w-full rounded border border-slate-700"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).replaceWith(
-                        Object.assign(document.createElement("div"), {
-                          className: "text-slate-500 text-sm",
-                          textContent: "Payload could not be displayed as an image.",
-                        })
-                      );
-                    }}
-                  />
-                )}
-              </Show>
-            </div>
-          )}
-        </Show>
-      </div>
+            )}
+          </Show>
+        </div>
+      </Show>
     </div>
   );
 }

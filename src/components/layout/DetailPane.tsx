@@ -4,7 +4,6 @@ import { useTopicTree } from "../../stores/topics";
 import { getNodeByTopic } from "../../lib/topic-tree";
 import MessageDetail from "../detail/MessageDetail";
 import MessageTable from "../detail/MessageTable";
-import ChartPane from "../detail/ChartPane";
 import type { LoggedMessage } from "../../stores/messageLog";
 import {
   TabContext,
@@ -54,8 +53,9 @@ export default function DetailPane() {
     for (const tab of tabs()) unregisterTab(tab.id);
   });
 
-  // Forward global tree selection → active tab only
+  // Forward global tree selection → active tab only (ignore deselect)
   createEffect(on(globalSelectedTopic, (topic) => {
+    if (topic === null) return; // deselecting in tree should not clear the tab
     const active = tabs().find((t) => t.id === activeTabId());
     if (active) active.setSelectedTopic(topic);
   }));
@@ -177,7 +177,7 @@ function TabContent() {
   // Per-tab stores from context
   const ctx = useContext(TabContext)!;
   const { logEnabled, setLogEnabled, logMode, liveTopics, clearLog, seedLiveFromTree } = ctx.messageLog;
-  const { initSeries, setChartActive, clearAll, ensureSeries, chartActive } = ctx.chartData;
+  const { ensureSeries, chartActive } = ctx.chartData;
   const { pinnedTopics } = useTabPinnedTopics();
 
   // This tab's own selected topic (set by parent only when this tab is active)
@@ -288,15 +288,8 @@ function TabContent() {
 
   return (
     <div ref={containerRef!} class="flex-1 flex flex-col overflow-hidden bg-slate-900 min-w-0">
-      {/* Table/Chart toggle strip */}
+      {/* Top strip */}
       <div class="flex items-center px-3 py-0.5 border-b border-slate-700 bg-slate-800/40 shrink-0 gap-2">
-        {/* Current topic */}
-        <Show when={selectedTopic()}>
-          <span class="text-xs text-slate-400 font-mono truncate max-w-[300px]" title={selectedTopic()!}>
-            {selectedTopic()}
-          </span>
-          <div class="w-px h-3.5 bg-slate-600 shrink-0" />
-        </Show>
         <button
           class="flex items-center gap-1.5 text-xs transition-colors"
           classList={{
@@ -316,58 +309,6 @@ function TabContent() {
           </svg>
           <span>Table</span>
         </button>
-
-        <button
-          class="flex items-center gap-1.5 text-xs transition-colors"
-          classList={{
-            "text-blue-400": chartActive(),
-            "text-slate-500 hover:text-slate-300": !chartActive(),
-          }}
-          onClick={() => {
-            if (chartActive()) {
-              setChartActive(false);
-              clearAll();
-              if (detailMode() === "chart") setDetailMode("detail");
-            } else {
-              initSeries(pinnedTopics(), (t) => liveTopics[t]?.payload);
-              setChartActive(true);
-              setDetailMode("chart");
-            }
-          }}
-          title={chartActive() ? "Stop chart (clears data)" : "Start chart"}
-        >
-          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M1 11V3M1 11h12M3 9l3-4 3 2 4-5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <span>Chart</span>
-        </button>
-
-        <Show when={chartActive()}>
-          <div class="flex items-center border-l border-slate-600 pl-2 ml-0.5 gap-1">
-            <button
-              class="px-1.5 py-0.5 text-xs rounded transition-colors"
-              classList={{
-                "bg-slate-700 text-blue-400": detailMode() === "detail",
-                "text-slate-500 hover:text-slate-300": detailMode() !== "detail",
-              }}
-              onClick={() => setDetailMode("detail")}
-              title="Show payload detail"
-            >
-              Detail
-            </button>
-            <button
-              class="px-1.5 py-0.5 text-xs rounded transition-colors"
-              classList={{
-                "bg-slate-700 text-blue-400": detailMode() === "chart",
-                "text-slate-500 hover:text-slate-300": detailMode() !== "chart",
-              }}
-              onClick={() => setDetailMode("chart")}
-              title="Show chart"
-            >
-              Graph
-            </button>
-          </div>
-        </Show>
       </div>
 
       {/* Table pane */}
@@ -390,26 +331,19 @@ function TabContent() {
       {/* Detail pane */}
       <div class="flex-1 overflow-hidden min-h-0">
         <Show
-          when={detailMode() === "chart"}
+          when={selectedNode() || detailMode() === "chart"}
           fallback={
-            <Show
-              when={selectedNode()}
-              fallback={
-                <div class="h-full flex items-center justify-center text-slate-500 text-sm">
-                  Click a topic in the tree to view its data
-                </div>
-              }
-            >
-              {(node) => (
-                <MessageDetail
-                  node={node()}
-                  overrideMessage={overrideMessage()}
-                />
-              )}
-            </Show>
+            <div class="h-full flex items-center justify-center text-slate-500 text-sm">
+              Click a topic in the tree to view its data
+            </div>
           }
         >
-          <ChartPane />
+          <MessageDetail
+            node={selectedNode() ?? undefined}
+            overrideMessage={overrideMessage()}
+            detailMode={detailMode()}
+            onDetailModeChange={setDetailMode}
+          />
         </Show>
       </div>
     </div>
