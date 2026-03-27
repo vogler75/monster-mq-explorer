@@ -118,6 +118,26 @@ export default function HistoryPane() {
     }
   }
 
+  function exportCsv() {
+    const rows = results();
+    if (rows.length === 0) return;
+    const escape = (s: string) => {
+      if (s.includes('"') || s.includes(",") || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const lines = ["timestamp,topic,qos,payload"];
+    for (const msg of rows) {
+      lines.push(`${new Date(msg.timestamp).toISOString()},${escape(msg.topic)},${msg.qos},${escape(msg.payload)}`);
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `history-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Resizable column widths
   const [colTimestamp, setColTimestamp] = createSignal(180);
   const [colTopic, setColTopic] = createSignal(200);
@@ -179,6 +199,15 @@ export default function HistoryPane() {
           disabled={loading() || queryableTopicCount() === 0}
         >
           {loading() ? "Querying..." : "Query"}
+        </button>
+
+        <button
+          class="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={exportCsv}
+          disabled={results().length === 0}
+          title="Export as CSV"
+        >
+          Export CSV
         </button>
 
         <Show when={queryableTopicCount() === 0}>
