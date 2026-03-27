@@ -220,6 +220,26 @@ export default function MessageTable(props: Props) {
     clearPinned();
   }
 
+  function exportCsv() {
+    const msgs = displayMessages();
+    if (msgs.length === 0) return;
+    const escape = (s: string) => {
+      if (s.includes('"') || s.includes(",") || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const lines = ["timestamp,topic,qos,retain,payload"];
+    for (const msg of msgs) {
+      lines.push(`${new Date(msg.timestamp).toISOString()},${escape(msg.topic)},${msg.qos},${msg.retain},${escape(payloadToString(msg.payload))}`);
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `messages-${logMode()}-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const hasPinned = () => pinnedTopics().size > 0;
 
   const thBase = "relative shrink-0 px-1 flex items-center text-slate-400 font-medium select-none overflow-hidden";
@@ -480,6 +500,17 @@ export default function MessageTable(props: Props) {
             </div>
           </Show>
         </div>
+
+        <button
+          class="p-0.5 rounded text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          onClick={exportCsv}
+          disabled={displayMessages().length === 0}
+          title="Export as CSV"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M7 2v7M4 6l3 3 3-3M2 11h10v1H2z" />
+          </svg>
+        </button>
 
         <span class="text-slate-500">
           {displayMessages().length} rows
