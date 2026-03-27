@@ -1,9 +1,8 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import { useWatchlist } from "../../stores/watchlist";
-import { useChartData, seriesKey } from "../../stores/chartData";
-import { useMessageLog } from "../../stores/messageLog";
+import { seriesKey } from "../../stores/chartData";
+import { useTabChartData, useTabMessageLog, useTabPinnedTopics } from "../../stores/tabStore";
 import { collectJsonPaths, extractValue } from "../../lib/jsonPath";
 
 /**
@@ -198,13 +197,13 @@ function TopicConfigPill(props: TopicConfigPillProps) {
 // ── ChartPane ───────────────────────────────────────────────────────
 
 export default function ChartPane() {
-  const { pinnedTopics } = useWatchlist();
+  const { pinnedTopics } = useTabPinnedTopics();
   const {
     getSeriesArrays, seriesVersion, configVersion,
     maxPoints, setMaxPoints, clearAll,
     getTopicConfig, updateTopicConfig, getAllSeriesKeys,
-  } = useChartData();
-  const { liveTopics } = useMessageLog();
+  } = useTabChartData();
+  const { liveTopics } = useTabMessageLog();
 
   let containerRef!: HTMLDivElement;
   let uplotInstance: uPlot | undefined;

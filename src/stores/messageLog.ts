@@ -14,17 +14,20 @@ export interface LoggedMessage {
 
 let idCounter = 0;
 
-const [logEnabled, setLogEnabled] = createSignal(true);
-const [logMode, setLogMode] = createSignal<"history" | "live">("live");
-const [logMaxRows, setLogMaxRows] = createSignal(500);
-const [logAutoScroll, setLogAutoScroll] = createSignal(true);
-const [logOrder, setLogOrder] = createSignal<"newest-top" | "newest-bottom">("newest-bottom");
-const [logSort, setLogSort] = createSignal<"time" | "topic">("topic");
-const [logMessages, setLogMessages] = createStore<LoggedMessage[]>([]);
-const [liveTopics, setLiveTopics] = createStore<Record<string, LoggedMessage>>({});
-const [recentlyUpdated, setRecentlyUpdated] = createSignal<Set<string>>(new Set());
+export type MessageLogStore = ReturnType<typeof createMessageLogStore>;
 
-export function useMessageLog() {
+/** Factory: creates an independent message log store instance */
+export function createMessageLogStore() {
+  const [logEnabled, setLogEnabled] = createSignal(true);
+  const [logMode, setLogMode] = createSignal<"history" | "live">("live");
+  const [logMaxRows, setLogMaxRows] = createSignal(500);
+  const [logAutoScroll, setLogAutoScroll] = createSignal(true);
+  const [logOrder, setLogOrder] = createSignal<"newest-top" | "newest-bottom">("newest-bottom");
+  const [logSort, setLogSort] = createSignal<"time" | "topic">("topic");
+  const [logMessages, setLogMessages] = createStore<LoggedMessage[]>([]);
+  const [liveTopics, setLiveTopics] = createStore<Record<string, LoggedMessage>>({});
+  const [recentlyUpdated, setRecentlyUpdated] = createSignal<Set<string>>(new Set());
+
   return {
     logEnabled, setLogEnabled,
     logMode, setLogMode,
@@ -40,15 +43,12 @@ export function useMessageLog() {
       if (!logEnabled()) return;
       const prefix = selectedTopic ? selectedTopic + "/" : null;
       const matching = msgs.filter((m) => {
-        // Always accept messages for pinned topics
         if (pinnedTopics?.has(m.topic)) return true;
-        // Accept messages matching the selected topic prefix
         if (!selectedTopic) return false;
         return m.topic === selectedTopic || (prefix !== null && m.topic.startsWith(prefix));
       });
       if (matching.length === 0) return;
 
-      // Always update live topics (one row per topic)
       setLiveTopics(
         produce((live) => {
           for (const m of matching) {
@@ -57,7 +57,6 @@ export function useMessageLog() {
         })
       );
 
-      // Track recently updated topics for flash animation
       const updatedSet = new Set(matching.map((m) => m.topic));
       setRecentlyUpdated((prev) => new Set([...prev, ...updatedSet]));
       setTimeout(() => {
@@ -68,7 +67,6 @@ export function useMessageLog() {
         });
       }, 650);
 
-      // History: append rows, trim to max
       const max = logMaxRows();
       setLogMessages(
         produce((log) => {
@@ -80,16 +78,11 @@ export function useMessageLog() {
       );
     },
 
-    /**
-     * Clear the log. Pinned topics are retained in liveTopics so they stay
-     * visible when the tree selection changes.
-     */
     clearLog(pinnedTopics?: Set<string>) {
       setLogMessages([]);
       if (!pinnedTopics || pinnedTopics.size === 0) {
         setLiveTopics(reconcile({}));
       } else {
-        // Keep only the pinned rows in liveTopics
         setLiveTopics(
           produce((live) => {
             for (const key of Object.keys(live)) {
@@ -121,4 +114,11 @@ export function useMessageLog() {
       );
     },
   };
+}
+
+// Default singleton instance (used by useMessageLog for backward compat)
+const defaultStore = createMessageLogStore();
+
+export function useMessageLog() {
+  return defaultStore;
 }

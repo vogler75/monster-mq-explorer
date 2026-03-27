@@ -18,56 +18,20 @@ export interface TopicSeries {
   count: number;
 }
 
-// Singleton module-level state
-const [chartActive, setChartActive] = createSignal(false);
-const [maxPoints, setMaxPoints] = createSignal(MAX_DEFAULT);
-
-// Plain objects (not Solid stores) to avoid reactivity issues
-let topicConfigs: Record<string, TopicChartConfig> = {};
-let seriesData: Record<string, TopicSeries> = {};
-
-// Version counter to trigger chart redraws + config version for UI
-const [seriesVersion, setSeriesVersion] = createSignal(0);
-const [configVersion, setConfigVersion] = createSignal(0);
-
 /** Build a series key from topic + optional path */
 export function seriesKey(topic: string, path?: string): string {
   return path ? `${topic}\0${path}` : topic;
 }
 
-/** Get all series keys for a topic based on its config */
-function seriesKeysForTopic(topic: string): string[] {
-  const config = topicConfigs[topic];
-  if (!config) return [];
-  if (config.mode === "raw") return [seriesKey(topic)];
-  return config.paths.map((p) => seriesKey(topic, p));
-}
-
-function allocSeries(key: string) {
-  if (seriesData[key]) return;
-  const max = maxPoints();
-  seriesData[key] = {
-    key,
-    timestamps: new Float64Array(max),
-    values: new Float64Array(max),
-    head: 0,
-    count: 0,
-  };
-}
-
 /**
  * Auto-detect config for a topic based on its latest payload.
- * If the payload is a raw number, use raw mode.
- * If it's JSON and has a "value" field (case-insensitive), auto-select it as path mode.
  */
 function autoDetectConfig(payload: Uint8Array | undefined): { mode: "raw" | "path"; paths: string[] } {
   if (!payload) return { mode: "raw", paths: [] };
 
-  // Try raw first — if it parses as a number, use raw mode
   const rawVal = extractValue(payload, { mode: "raw", path: "" });
   if (rawVal !== null) return { mode: "raw", paths: [] };
 
-  // Try JSON — look for a "value" field (case-insensitive)
   try {
     const text = new TextDecoder().decode(payload);
     const obj = JSON.parse(text);
@@ -83,12 +47,42 @@ function autoDetectConfig(payload: Uint8Array | undefined): { mode: "raw" | "pat
   return { mode: "raw", paths: [] };
 }
 
-export function useChartData() {
+export type ChartDataStore = ReturnType<typeof createChartDataStore>;
+
+/** Factory: creates an independent chart data store instance */
+export function createChartDataStore() {
+  const [chartActive, setChartActive] = createSignal(false);
+  const [maxPoints, setMaxPoints] = createSignal(MAX_DEFAULT);
+
+  let topicConfigs: Record<string, TopicChartConfig> = {};
+  let seriesData: Record<string, TopicSeries> = {};
+
+  const [seriesVersion, setSeriesVersion] = createSignal(0);
+  const [configVersion, setConfigVersion] = createSignal(0);
+
+  function seriesKeysForTopic(topic: string): string[] {
+    const config = topicConfigs[topic];
+    if (!config) return [];
+    if (config.mode === "raw") return [seriesKey(topic)];
+    return config.paths.map((p) => seriesKey(topic, p));
+  }
+
+  function allocSeries(key: string) {
+    if (seriesData[key]) return;
+    const max = maxPoints();
+    seriesData[key] = {
+      key,
+      timestamps: new Float64Array(max),
+      values: new Float64Array(max),
+      head: 0,
+      count: 0,
+    };
+  }
+
   function initSeries(pinnedTopics: Set<string>, getPayload?: (topic: string) => Uint8Array | undefined) {
     seriesData = {};
     topicConfigs = {};
 
-    const max = maxPoints();
     for (const topic of pinnedTopics) {
       const payload = getPayload?.(topic);
       const detected = autoDetectConfig(payload);
@@ -96,7 +90,6 @@ export function useChartData() {
       for (const key of seriesKeysForTopic(topic)) {
         allocSeries(key);
       }
-      // Seed with current value so the chart doesn't start empty
       if (payload) {
         const config = topicConfigs[topic];
         const now = Date.now();
@@ -139,11 +132,9 @@ export function useChartData() {
       const detected = autoDetectConfig(payload);
       topicConfigs[topic] = { topic, ...detected };
     }
-    // Allocate ring buffers for all series of this topic
     for (const key of seriesKeysForTopic(topic)) {
       allocSeries(key);
     }
-    // Seed initial value and notify chart for newly added topics
     if (isNew && payload) {
       const config = topicConfigs[topic];
       const now = Date.now();
@@ -169,7 +160,6 @@ export function useChartData() {
 
   function updateTopicConfig(topic: string, mode: "raw" | "path", paths: string[]) {
     topicConfigs[topic] = { topic, mode, paths };
-    // Allocate buffers for any new paths
     for (const key of seriesKeysForTopic(topic)) {
       allocSeries(key);
     }
@@ -181,7 +171,6 @@ export function useChartData() {
     return topicConfigs[topic] || { topic, mode: "raw", paths: [] };
   }
 
-  /** Returns all series keys across all topics (in order for chart display) */
   function getAllSeriesKeys(pinnedTopics: string[]): string[] {
     const keys: string[] = [];
     for (const topic of pinnedTopics) {
@@ -211,7 +200,6 @@ export function useChartData() {
       if (series.count < max) series.count++;
       wrote = true;
     } else {
-      // Path mode: extract each selected path
       for (const path of config.paths) {
         const value = extractValue(payload, { mode: "path", path });
         if (value === null) continue;
@@ -270,4 +258,11 @@ export function useChartData() {
     updateTopicConfig,
     clearAll,
   };
+}
+
+// Default singleton instance
+const defaultStore = createChartDataStore();
+
+export function useChartData() {
+  return defaultStore;
 }

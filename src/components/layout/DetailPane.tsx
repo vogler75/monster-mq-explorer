@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal, createEffect, onMount, on } from "solid-js";
+import { Show, For, createMemo, createSignal, createEffect, onMount, on, onCleanup, useContext, type Accessor, type Setter } from "solid-js";
 import { useUI } from "../../stores/ui";
 import { useTopicTree } from "../../stores/topics";
 import { getNodeByTopic } from "../../lib/topic-tree";
@@ -6,27 +6,178 @@ import MessageDetail from "../detail/MessageDetail";
 import MessageTable from "../detail/MessageTable";
 import ChartPane from "../detail/ChartPane";
 import type { LoggedMessage } from "../../stores/messageLog";
-import { useMessageLog } from "../../stores/messageLog";
-import { useWatchlist } from "../../stores/watchlist";
-import { useChartData } from "../../stores/chartData";
+import {
+  TabContext,
+  createTabStores,
+  registerTab,
+  unregisterTab,
+  useTabPinnedTopics,
+  type TabContextValue,
+} from "../../stores/tabStore";
+
+interface TabState {
+  id: string;
+  label: string;
+  stores: TabContextValue;
+  selectedTopic: Accessor<string | null>;
+  setSelectedTopic: Setter<string | null>;
+}
+
+let tabIdCounter = 0;
 
 export default function DetailPane() {
-  const { selectedTopic } = useUI();
+  const { selectedTopic: globalSelectedTopic } = useUI();
+
+  // ── Tab management ────────────────────────────────────────────────
+
+  function makeTab(): TabState {
+    const num = ++tabIdCounter;
+    const id = `tab-${num}`;
+    const [selectedTopic, setSelectedTopic] = createSignal<string | null>(null);
+    const stores = createTabStores(selectedTopic);
+    return { id, label: `#${num}`, stores, selectedTopic, setSelectedTopic };
+  }
+
+  const defaultTab = makeTab();
+  const [tabs, setTabs] = createSignal<TabState[]>([defaultTab]);
+  const [activeTabId, setActiveTabId] = createSignal(defaultTab.id);
+
+  // Register default tab
+  registerTab({
+    id: defaultTab.id,
+    selectedTopic: defaultTab.selectedTopic,
+    pinnedTopics: defaultTab.stores.pinnedTopics.pinnedTopics,
+    messageLog: defaultTab.stores.messageLog,
+    chartData: defaultTab.stores.chartData,
+  });
+  onCleanup(() => {
+    for (const tab of tabs()) unregisterTab(tab.id);
+  });
+
+  // Forward global tree selection → active tab only
+  createEffect(on(globalSelectedTopic, (topic) => {
+    const active = tabs().find((t) => t.id === activeTabId());
+    if (active) active.setSelectedTopic(topic);
+  }));
+
+  function openNewTab() {
+    const tab = makeTab();
+    // Initialize new tab with current global selection
+    tab.setSelectedTopic(globalSelectedTopic());
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(tab.id);
+
+    registerTab({
+      id: tab.id,
+      selectedTopic: tab.selectedTopic,
+      pinnedTopics: tab.stores.pinnedTopics.pinnedTopics,
+      messageLog: tab.stores.messageLog,
+      chartData: tab.stores.chartData,
+    });
+  }
+
+  function closeTab(id: string) {
+    const current = tabs();
+    if (current.length <= 1) return;
+    unregisterTab(id);
+    const idx = current.findIndex((t) => t.id === id);
+    const next = current.filter((t) => t.id !== id);
+    setTabs(next);
+    if (activeTabId() === id) {
+      const newIdx = Math.min(idx, next.length - 1);
+      setActiveTabId(next[newIdx].id);
+    }
+  }
+
+  return (
+    <div class="flex-1 flex flex-col overflow-hidden bg-slate-900 min-w-0">
+      {/* Tab bar */}
+      <div class="flex items-center bg-slate-800/60 border-b border-slate-700 shrink-0 min-h-0 overflow-x-auto">
+        <For each={tabs()}>
+          {(tab) => (
+            <button
+              class="group relative flex items-center gap-1.5 px-3 py-1 text-xs border-r border-slate-700 shrink-0 transition-colors"
+              classList={{
+                "bg-slate-900 text-blue-400": activeTabId() === tab.id,
+                "text-slate-400 hover:text-slate-200 hover:bg-slate-800": activeTabId() !== tab.id,
+              }}
+              onClick={() => setActiveTabId(tab.id)}
+            >
+              <span>{tab.label}</span>
+              <Show when={tabs().length > 1}>
+                <span
+                  class="ml-1 p-0.5 rounded hover:bg-slate-600 text-slate-500 hover:text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                >
+                  <svg class="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M2 2l6 6M8 2l-6 6" />
+                  </svg>
+                </span>
+              </Show>
+            </button>
+          )}
+        </For>
+        <button
+          class="px-2 py-1 text-xs text-slate-500 hover:text-blue-400 hover:bg-slate-800 transition-colors shrink-0"
+          onClick={openNewTab}
+          title="Open new tab"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M7 2v10M2 7h10" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Tab content: render all, hide inactive to preserve state */}
+      <For each={tabs()}>
+        {(tab) => (
+          <div
+            class="flex-1 flex flex-col overflow-hidden min-w-0"
+            style={{ display: activeTabId() === tab.id ? undefined : "none" }}
+          >
+            <TabContext.Provider value={tab.stores}>
+              <TabContent />
+            </TabContext.Provider>
+          </div>
+        )}
+      </For>
+    </div>
+  );
+}
+
+// ── TabContent: the per-tab detail pane content ─────────────────────
+
+function TabContent() {
   const { topicTree } = useTopicTree();
-  const { logEnabled, setLogEnabled, logMode, liveTopics, clearLog, seedLiveFromTree } = useMessageLog();
-  const { pinnedTopics } = useWatchlist();
-  const { initSeries, setChartActive, clearAll, ensureSeries, chartActive } = useChartData();
+
+  // Per-tab stores from context
+  const ctx = useContext(TabContext)!;
+  const { logEnabled, setLogEnabled, logMode, liveTopics, clearLog, seedLiveFromTree } = ctx.messageLog;
+  const { initSeries, setChartActive, clearAll, ensureSeries, chartActive } = ctx.chartData;
+  const { pinnedTopics } = useTabPinnedTopics();
+
+  // This tab's own selected topic (set by parent only when this tab is active)
+  const selectedTopic = ctx.selectedTopic;
 
   const [tableHeight, setTableHeight] = createSignal(0);
   const [detailMode, setDetailMode] = createSignal<"detail" | "chart">("detail");
 
-  onMount(() => setTableHeight(Math.floor(containerRef.getBoundingClientRect().height / 2)));
-  // In history mode: store the clicked message object directly (stable snapshot)
-  const [selectedLogMsg, setSelectedLogMsg] = createSignal<LoggedMessage | null>(null);
-  // In live mode: store the topic string and derive the message reactively
-  const [selectedLiveTopic, setSelectedLiveTopic] = createSignal<string | null>(null);
-
   let containerRef!: HTMLDivElement;
+
+  onMount(() => {
+    const setHalf = () => {
+      const h = containerRef.getBoundingClientRect().height;
+      if (h > 0) {
+        setTableHeight(Math.floor(h / 2));
+      } else {
+        requestAnimationFrame(setHalf);
+      }
+    };
+    setHalf();
+  });
+
+  const [selectedLogMsg, setSelectedLogMsg] = createSignal<LoggedMessage | null>(null);
+  const [selectedLiveTopic, setSelectedLiveTopic] = createSignal<string | null>(null);
 
   const selectedNode = createMemo(() => {
     const topic = selectedTopic();
@@ -54,8 +205,6 @@ export default function DetailPane() {
   }));
 
   // Clear selection when switching modes; re-seed live topics when entering live mode.
-  // Use on() so the body runs inside untrack — prevents topicTree/selectedTopic from
-  // being tracked and causing spurious clears on every incoming message.
   createEffect(on(logMode, (mode) => {
     setSelectedLogMsg(null);
     setSelectedLiveTopic(null);
@@ -76,8 +225,6 @@ export default function DetailPane() {
     }
   }
 
-  // In live mode: re-derive from the store so detail updates when a new message arrives.
-  // In history mode: use the frozen snapshot clicked by the user.
   const overrideMessage = createMemo<LoggedMessage | null>(() => {
     if (logMode() === "live") {
       const topic = selectedLiveTopic();
@@ -86,7 +233,6 @@ export default function DetailPane() {
     return selectedLogMsg();
   });
 
-  // Row highlight id — in live mode look up the stable id from the store.
   const selectedMessageId = createMemo<number | null>(() => {
     if (logMode() === "live") {
       const topic = selectedLiveTopic();
@@ -120,6 +266,13 @@ export default function DetailPane() {
     <div ref={containerRef!} class="flex-1 flex flex-col overflow-hidden bg-slate-900 min-w-0">
       {/* Table/Chart toggle strip */}
       <div class="flex items-center px-3 py-0.5 border-b border-slate-700 bg-slate-800/40 shrink-0 gap-2">
+        {/* Current topic */}
+        <Show when={selectedTopic()}>
+          <span class="text-xs text-slate-400 font-mono truncate max-w-[300px]" title={selectedTopic()!}>
+            {selectedTopic()}
+          </span>
+          <div class="w-px h-3.5 bg-slate-600 shrink-0" />
+        </Show>
         <button
           class="flex items-center gap-1.5 text-xs transition-colors"
           classList={{
@@ -140,7 +293,6 @@ export default function DetailPane() {
           <span>Table</span>
         </button>
 
-        {/* Chart on/off: starts/stops data collection */}
         <button
           class="flex items-center gap-1.5 text-xs transition-colors"
           classList={{
@@ -166,7 +318,6 @@ export default function DetailPane() {
           <span>Chart</span>
         </button>
 
-        {/* Detail/Chart view switch (only visible when chart is active) */}
         <Show when={chartActive()}>
           <div class="flex items-center border-l border-slate-600 pl-2 ml-0.5 gap-1">
             <button
@@ -206,7 +357,6 @@ export default function DetailPane() {
             selectedMessageId={selectedMessageId()}
           />
         </div>
-        {/* Resize handle */}
         <div
           class="h-1 shrink-0 cursor-row-resize bg-slate-700 hover:bg-blue-500 transition-colors"
           onMouseDown={startSplitResize}

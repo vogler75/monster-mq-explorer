@@ -5,9 +5,7 @@ import type { WorkerEvent } from "./workers/mqtt.protocol";
 import { useConnections } from "./stores/connections";
 import { useTopicTree } from "./stores/topics";
 import { useUI } from "./stores/ui";
-import { useMessageLog } from "./stores/messageLog";
-import { useWatchlist } from "./stores/watchlist";
-import { useChartData } from "./stores/chartData";
+import { broadcastMessages, broadcastChartMessage } from "./stores/tabStore";
 import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
@@ -37,9 +35,6 @@ export default function App() {
     useConnections();
   const { processBatch } = useTopicTree();
   const { getConnectionStatus, setConnectionStatus, showConnectionModal, showSubscriptionModal, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
-  const { addMessages } = useMessageLog();
-  const { pinnedTopics } = useWatchlist();
-  const { pushMessage, chartActive } = useChartData();
 
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
 
@@ -84,11 +79,9 @@ export default function App() {
           // Single batch so tree update + expand are applied atomically
           batch(() => {
             const newTopics = processBatch(msgs);
-            addMessages(msgs, selectedTopic(), pinnedTopics());
-            if (chartActive()) {
-              for (const m of msgs) {
-                pushMessage(m.topic, m.payload, m.timestamp);
-              }
+            broadcastMessages(msgs);
+            for (const m of msgs) {
+              broadcastChartMessage(m.topic, m.payload, m.timestamp);
             }
             if (autoExpand() && newTopics.length > 0) {
               expandTopics(newTopics);

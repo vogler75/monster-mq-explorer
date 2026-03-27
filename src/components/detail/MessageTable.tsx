@@ -1,7 +1,8 @@
 import { createMemo, createSignal, createEffect, For, Show } from "solid-js";
 import { createStore } from "solid-js/store";
 import { createVirtualizer } from "@tanstack/solid-virtual";
-import { useMessageLog, type LoggedMessage } from "../../stores/messageLog";
+import { useTabMessageLog, useTabPinnedTopics, useTabSelectedTopic } from "../../stores/tabStore";
+import type { LoggedMessage } from "../../stores/messageLog";
 import { useWatchlist } from "../../stores/watchlist";
 import { useUI } from "../../stores/ui";
 import { useTopicTree } from "../../stores/topics";
@@ -64,8 +65,9 @@ export default function MessageTable(props: Props) {
     logOrder, setLogOrder,
     logSort, setLogSort,
     logMessages, liveTopics, recentlyUpdated, clearLog, seedLiveFromTree,
-  } = useMessageLog();
-  const { pinnedTopics, isPinned, pinTopics, unpinTopics, clearPinned, watchlists, saveWatchlist, loadWatchlist, deleteWatchlist } = useWatchlist();
+  } = useTabMessageLog();
+  const { pinnedTopics, isPinned, pinTopics, unpinTopics, clearPinned } = useTabPinnedTopics();
+  const { watchlists, saveWatchlist, getWatchlistTopics, deleteWatchlist } = useWatchlist();
   const { topicTree } = useTopicTree();
 
   const [colTime, setColTime] = createSignal(100);
@@ -98,7 +100,8 @@ export default function MessageTable(props: Props) {
     }
     return keys;
   });
-  const { flashEnabled, selectedTopic } = useUI();
+  const { flashEnabled } = useUI();
+  const selectedTopic = useTabSelectedTopic();
 
   let scrollRef!: HTMLDivElement;
   let multilineRef!: HTMLDivElement;
@@ -406,7 +409,7 @@ export default function MessageTable(props: Props) {
                     onInput={(e) => setSaveNameInput(e.currentTarget.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && saveNameInput().trim()) {
-                        saveWatchlist(saveNameInput().trim());
+                        saveWatchlist(saveNameInput().trim(), pinnedTopics());
                         setSaveNameInput("");
                         setShowSaveInput(false);
                         setShowWatchlistMenu(false);
@@ -421,7 +424,7 @@ export default function MessageTable(props: Props) {
                     disabled={!saveNameInput().trim()}
                     onClick={() => {
                       if (saveNameInput().trim()) {
-                        saveWatchlist(saveNameInput().trim());
+                        saveWatchlist(saveNameInput().trim(), pinnedTopics());
                         setSaveNameInput("");
                         setShowSaveInput(false);
                         setShowWatchlistMenu(false);
@@ -446,7 +449,7 @@ export default function MessageTable(props: Props) {
                       <div class="flex items-center gap-1 px-2 py-1 hover:bg-slate-700 group">
                         <button
                           class="flex-1 text-left text-xs text-slate-300 group-hover:text-slate-100 truncate"
-                          onClick={() => { loadWatchlist(wl.id); setShowWatchlistMenu(false); }}
+                          onClick={() => { pinTopics(getWatchlistTopics(wl.id)); setShowWatchlistMenu(false); }}
                           title={`Load "${wl.name}" (${wl.topics.length} topics)`}
                         >
                           {wl.name}
