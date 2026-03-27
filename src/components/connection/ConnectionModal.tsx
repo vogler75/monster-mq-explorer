@@ -30,6 +30,8 @@ export default function ConnectionModal() {
   const [clientId, setClientId] = createSignal(defaults().clientId);
   const [tagPathSplit, setTagPathSplit] = createSignal(defaults().tagPathSplit ?? "::");
   const [filterInternalTags, setFilterInternalTags] = createSignal(defaults().filterInternalTags ?? false);
+  const [isMonsterMq, setIsMonsterMq] = createSignal(defaults().isMonsterMq ?? false);
+  const [monsterMqGraphqlUrl, setMonsterMqGraphqlUrl] = createSignal(defaults().monsterMqGraphqlUrl ?? "");
   const [showTagBrowser, setShowTagBrowser] = createSignal(false);
   const [expandedSubIndex, setExpandedSubIndex] = createSignal<number | null>(null);
   const [subscriptions, setSubscriptions] = createStore<Subscription[]>([
@@ -94,6 +96,8 @@ export default function ConnectionModal() {
       clientId: clientId(),
       tagPathSplit: tagPathSplit(),
       filterInternalTags: filterInternalTags(),
+      isMonsterMq: isMonsterMq(),
+      monsterMqGraphqlUrl: monsterMqGraphqlUrl(),
       subscriptions: subscriptions.filter((s) => s.topic.trim() !== "" || (s.tags && s.tags.length > 0)),
     };
 
@@ -256,6 +260,30 @@ export default function ConnectionModal() {
                 onInput={(e) => setClientId(e.currentTarget.value)}
               />
             </div>
+          </Show>
+
+          {/* MonsterMQ — MQTT only */}
+          <Show when={connectionType() === "mqtt"}>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                class="accent-blue-500"
+                checked={isMonsterMq()}
+                onChange={(e) => setIsMonsterMq(e.currentTarget.checked)}
+              />
+              <span class="text-xs text-slate-400">MonsterMQ Broker</span>
+            </label>
+            <Show when={isMonsterMq()}>
+              <div>
+                <label class={labelClass}>GraphQL URL</label>
+                <input
+                  class={inputClass}
+                  placeholder="https://broker:4000/graphql"
+                  value={monsterMqGraphqlUrl()}
+                  onInput={(e) => setMonsterMqGraphqlUrl(e.currentTarget.value)}
+                />
+              </div>
+            </Show>
           </Show>
 
           {/* Tag path splitting — WinCC UA / OA only */}

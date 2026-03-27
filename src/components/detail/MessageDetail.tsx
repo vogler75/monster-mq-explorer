@@ -14,6 +14,7 @@ import { useConnections } from "../../stores/connections";
 import { useTabChartData, useTabPinnedTopics, useTabMessageLog } from "../../stores/tabStore";
 import JsonViewer from "./JsonViewer";
 import ChartPane from "./ChartPane";
+import HistoryPane from "./HistoryPane";
 
 type Tab = "formatted" | "raw" | "hex" | "pic";
 
@@ -28,11 +29,13 @@ function detectMimeType(payload: Uint8Array): string {
   return "image/jpeg"; // fallback — let the browser decide
 }
 
+type DetailMode = "detail" | "chart" | "history";
+
 interface Props {
   node?: TopicNode;
   overrideMessage?: LoggedMessage | null;
-  detailMode?: "detail" | "chart";
-  onDetailModeChange?: (mode: "detail" | "chart") => void;
+  detailMode?: DetailMode;
+  onDetailModeChange?: (mode: DetailMode) => void;
 }
 
 export default function MessageDetail(props: Props) {
@@ -182,6 +185,16 @@ export default function MessageDetail(props: Props) {
         >
           Graph
         </button>
+        <button
+          class="px-4 py-1.5 text-xs transition-colors"
+          classList={{
+            "text-blue-400 border-b-2 border-blue-400": mode() === "history",
+            "text-slate-400 hover:text-slate-200": mode() !== "history",
+          }}
+          onClick={() => props.onDetailModeChange?.("history")}
+        >
+          History
+        </button>
         <Show when={mode() === "detail"}>
           <div class="w-px self-stretch bg-slate-600 shrink-0 mx-1" />
           {tabs.map((tab) => (
@@ -234,14 +247,17 @@ export default function MessageDetail(props: Props) {
       </div>
 
       {/* Content */}
-      <Show
-        when={mode() === "detail"}
-        fallback={
-          <div class="flex-1 overflow-hidden min-h-0">
-            <ChartPane />
-          </div>
-        }
-      >
+      <Show when={mode() === "chart"}>
+        <div class="flex-1 overflow-hidden min-h-0">
+          <ChartPane />
+        </div>
+      </Show>
+      <Show when={mode() === "history"}>
+        <div class="flex-1 overflow-hidden min-h-0">
+          <HistoryPane />
+        </div>
+      </Show>
+      <Show when={mode() === "detail"}>
         <div class="flex-1 overflow-auto pl-1 pr-4 py-4">
           <Show when={activeMessage()} fallback={
             <div class="text-slate-500 text-sm">No messages received yet</div>

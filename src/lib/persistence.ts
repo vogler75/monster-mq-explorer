@@ -44,6 +44,8 @@ function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig
     subscriptions,
     tagPathSplit: typeof input.tagPathSplit === "string" ? input.tagPathSplit : "",
     filterInternalTags: typeof input.filterInternalTags === "boolean" ? input.filterInternalTags : false,
+    isMonsterMq: typeof input.isMonsterMq === "boolean" ? input.isMonsterMq : false,
+    monsterMqGraphqlUrl: typeof input.monsterMqGraphqlUrl === "string" ? input.monsterMqGraphqlUrl : "",
   };
 }
 

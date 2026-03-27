@@ -184,7 +184,7 @@ function TabContent() {
   const selectedTopic = ctx.selectedTopic;
 
   const [tableHeight, setTableHeight] = createSignal(0);
-  const [detailMode, setDetailMode] = createSignal<"detail" | "chart">("detail");
+  const [detailMode, setDetailMode] = createSignal<"detail" | "chart" | "history">("detail");
   const [detailVisible, setDetailVisible] = createSignal(true);
 
   let containerRef!: HTMLDivElement;
@@ -351,7 +351,7 @@ function TabContent() {
       <Show when={detailVisible()}>
         <div class="flex-1 overflow-hidden min-h-0">
           <Show
-            when={selectedNode() || detailMode() === "chart"}
+            when={selectedNode() || detailMode() === "chart" || detailMode() === "history"}
             fallback={
               <div class="h-full flex items-center justify-center text-slate-500 text-sm">
                 Click a topic in the tree to view its data

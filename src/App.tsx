@@ -6,6 +6,7 @@ import { useConnections } from "./stores/connections";
 import { useTopicTree } from "./stores/topics";
 import { useUI } from "./stores/ui";
 import { broadcastMessages, broadcastChartMessage } from "./stores/tabStore";
+import { fetchArchiveGroups } from "./lib/monstermq-api";
 import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
@@ -34,7 +35,7 @@ export default function App() {
   const { connections, activeConnectionId, setActiveConnectionId, getConnection } =
     useConnections();
   const { processBatch } = useTopicTree();
-  const { getConnectionStatus, setConnectionStatus, showConnectionModal, showSubscriptionModal, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
+  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, showConnectionModal, showSubscriptionModal, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
 
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
 
@@ -110,6 +111,12 @@ export default function App() {
     setActiveConnectionId(connectionId);
     const plainConfig = JSON.parse(JSON.stringify(unwrap(config)));
     w.postMessage({ type: "connect", config: plainConfig } as WorkerCommand);
+
+    if (config.isMonsterMq && config.monsterMqGraphqlUrl) {
+      fetchArchiveGroups(config.monsterMqGraphqlUrl)
+        .then((groups) => setArchiveGroups(connectionId, groups.map((g) => g.name)))
+        .catch((err) => console.error(`[MonsterMQ:${connectionId}] Failed to fetch archive groups:`, err));
+    }
   }
 
   function disconnect() {

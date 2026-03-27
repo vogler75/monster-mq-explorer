@@ -19,6 +19,7 @@ const [flashEnabled, setFlashEnabled] = createSignal(true);
 const [showConnectionModal, setShowConnectionModal] = createSignal(false);
 const [showSubscriptionModal, setShowSubscriptionModal] = createSignal(false);
 const [editingConnectionId, setEditingConnectionId] = createSignal<string | null>(null);
+const [archiveGroupsMap, setArchiveGroupsMap] = createSignal<Map<string, string[]>>(new Map());
 
 export function useUI() {
   return {
@@ -82,6 +83,13 @@ export function useUI() {
     setUnsubscribeFn(fn: UnsubscribeFn) { unsubscribeFn = fn; },
     subscribeLive(topic: string, qos: 0 | 1 | 2) { subscribeFn?.(topic, qos); },
     unsubscribeLive(topic: string) { unsubscribeFn?.(topic); },
+
+    getArchiveGroups(connectionId: string): string[] {
+      return archiveGroupsMap().get(connectionId) ?? [];
+    },
+    setArchiveGroups(connectionId: string, groups: string[]) {
+      setArchiveGroupsMap((prev) => new Map(prev).set(connectionId, groups));
+    },
 
     expandTo(topic: string) {
       const segments = topic.split("/");

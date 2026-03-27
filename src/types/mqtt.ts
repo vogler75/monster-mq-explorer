@@ -16,6 +16,10 @@ export interface ConnectionConfig {
   tagPathSplit: string;
   /** WinCC UA/OA: filter out internal tags (WinCC UA: starting with '@', WinCC OA: starting with '_') */
   filterInternalTags: boolean;
+  /** Whether this MQTT broker is a MonsterMQ instance with GraphQL API */
+  isMonsterMq: boolean;
+  /** GraphQL endpoint URL for MonsterMQ API (e.g. "https://broker:4000/graphql") */
+  monsterMqGraphqlUrl: string;
 }
 
 export interface Subscription {
@@ -72,6 +76,8 @@ export function createDefaultConnection(): ConnectionConfig {
     subscriptions: [{ topic: "#", qos: 0 }],
     tagPathSplit: "",
     filterInternalTags: false,
+    isMonsterMq: false,
+    monsterMqGraphqlUrl: "",
   };
 }
 
@@ -90,6 +96,8 @@ export function createDefaultWinCCOAConnection(): ConnectionConfig {
     subscriptions: [{ topic: "*", qos: 0 }],
     tagPathSplit: "_,.",
     filterInternalTags: false,
+    isMonsterMq: false,
+    monsterMqGraphqlUrl: "",
   };
 }
 
@@ -108,5 +116,7 @@ export function createDefaultWinCCUAConnection(): ConnectionConfig {
     subscriptions: [{ topic: "*", qos: 0 }],
     tagPathSplit: "_,.",
     filterInternalTags: true,
+    isMonsterMq: false,
+    monsterMqGraphqlUrl: "",
   };
 }
