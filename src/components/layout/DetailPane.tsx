@@ -89,21 +89,45 @@ export default function DetailPane() {
     }
   }
 
+  function renameTab(id: string, name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setTabs((prev) => prev.map((t) => t.id === id ? { ...t, label: trimmed } : t));
+  }
+
+  const [editingTabId, setEditingTabId] = createSignal<string | null>(null);
+
   return (
     <div class="flex-1 flex flex-col overflow-hidden bg-slate-900 min-w-0">
       {/* Tab bar */}
       <div class="flex items-center bg-slate-800/60 border-b border-slate-700 shrink-0 min-h-0 overflow-x-auto">
         <For each={tabs()}>
           {(tab) => (
-            <button
-              class="group relative flex items-center gap-1.5 px-3 py-1 text-xs border-r border-slate-700 shrink-0 transition-colors"
+            <div
+              class="group relative flex items-center gap-1.5 px-3 py-1 text-xs border-r border-slate-700 shrink-0 transition-colors cursor-pointer"
               classList={{
                 "bg-slate-900 text-blue-400": activeTabId() === tab.id,
                 "text-slate-400 hover:text-slate-200 hover:bg-slate-800": activeTabId() !== tab.id,
               }}
               onClick={() => setActiveTabId(tab.id)}
+              onDblClick={(e) => { e.stopPropagation(); setEditingTabId(tab.id); }}
             >
-              <span>{tab.label}</span>
+              <Show
+                when={editingTabId() === tab.id}
+                fallback={<span>{tab.label}</span>}
+              >
+                <input
+                  class="w-20 px-1 py-0 text-xs bg-slate-700 border border-blue-500 rounded text-slate-200 outline-none"
+                  value={tab.label}
+                  onClick={(e) => e.stopPropagation()}
+                  onBlur={(e) => { renameTab(tab.id, e.currentTarget.value); setEditingTabId(null); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { renameTab(tab.id, e.currentTarget.value); setEditingTabId(null); }
+                    if (e.key === "Escape") setEditingTabId(null);
+                  }}
+                  ref={(el) => requestAnimationFrame(() => { el.focus(); el.select(); })}
+                />
+              </Show>
               <Show when={tabs().length > 1}>
                 <span
                   class="ml-1 p-0.5 rounded hover:bg-slate-600 text-slate-500 hover:text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
@@ -114,7 +138,7 @@ export default function DetailPane() {
                   </svg>
                 </span>
               </Show>
-            </button>
+            </div>
           )}
         </For>
         <button
