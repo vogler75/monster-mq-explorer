@@ -185,6 +185,7 @@ function TabContent() {
 
   const [tableHeight, setTableHeight] = createSignal(0);
   const [detailMode, setDetailMode] = createSignal<"detail" | "chart">("detail");
+  const [detailVisible, setDetailVisible] = createSignal(true);
 
   let containerRef!: HTMLDivElement;
 
@@ -309,43 +310,63 @@ function TabContent() {
           </svg>
           <span>Table</span>
         </button>
+        <button
+          class="flex items-center gap-1.5 text-xs transition-colors"
+          classList={{
+            "text-blue-400": detailVisible(),
+            "text-slate-500 hover:text-slate-300": !detailVisible(),
+          }}
+          onClick={() => setDetailVisible((v) => !v)}
+          title={detailVisible() ? "Hide detail pane" : "Show detail pane"}
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="1" y="2" width="12" height="10" rx="1" />
+            <path d="M1 7h12" />
+          </svg>
+          <span>Detail</span>
+        </button>
       </div>
 
       {/* Table pane */}
       <Show when={tableHeight() > 0}>
         <div
-          class="shrink-0 overflow-hidden flex flex-col border-b border-slate-700"
-          style={{ height: `${tableHeight()}px` }}
+          class="overflow-hidden flex flex-col border-b border-slate-700"
+          classList={{ "shrink-0": detailVisible(), "flex-1": !detailVisible() }}
+          style={{ height: detailVisible() ? `${tableHeight()}px` : undefined }}
         >
           <MessageTable
             onSelectMessage={handleSelectMessage}
             selectedMessageId={selectedMessageId()}
           />
         </div>
-        <div
-          class="h-1 shrink-0 cursor-row-resize bg-slate-700 hover:bg-blue-500 transition-colors"
-          onMouseDown={startSplitResize}
-        />
+        <Show when={detailVisible()}>
+          <div
+            class="h-1 shrink-0 cursor-row-resize bg-slate-700 hover:bg-blue-500 transition-colors"
+            onMouseDown={startSplitResize}
+          />
+        </Show>
       </Show>
 
       {/* Detail pane */}
-      <div class="flex-1 overflow-hidden min-h-0">
-        <Show
-          when={selectedNode() || detailMode() === "chart"}
-          fallback={
-            <div class="h-full flex items-center justify-center text-slate-500 text-sm">
-              Click a topic in the tree to view its data
-            </div>
-          }
-        >
-          <MessageDetail
-            node={selectedNode() ?? undefined}
-            overrideMessage={overrideMessage()}
-            detailMode={detailMode()}
-            onDetailModeChange={setDetailMode}
-          />
-        </Show>
-      </div>
+      <Show when={detailVisible()}>
+        <div class="flex-1 overflow-hidden min-h-0">
+          <Show
+            when={selectedNode() || detailMode() === "chart"}
+            fallback={
+              <div class="h-full flex items-center justify-center text-slate-500 text-sm">
+                Click a topic in the tree to view its data
+              </div>
+            }
+          >
+            <MessageDetail
+              node={selectedNode() ?? undefined}
+              overrideMessage={overrideMessage()}
+              detailMode={detailMode()}
+              onDetailModeChange={setDetailMode}
+            />
+          </Show>
+        </div>
+      </Show>
     </div>
   );
 }
