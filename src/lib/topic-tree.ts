@@ -108,6 +108,68 @@ export function collectAllNodePaths(root: TopicNode): string[] {
   return result;
 }
 
+/**
+ * Flatten the tree showing only nodes matching the filter (and their ancestors).
+ * Matching nodes are shown collapsed; only non-matching ancestors are expanded
+ * to reveal the path to matching descendants.
+ */
+export function flattenFilteredNodes(
+  root: TopicNode,
+  filter: string,
+  sorted: boolean = false
+): FlatTreeNode[] {
+  const f = filter.toLowerCase();
+  const result: FlatTreeNode[] = [];
+
+  // Returns true if this subtree contains any match
+  function walk(node: TopicNode, depth: number): boolean {
+    const childKeys = sorted
+      ? Object.keys(node.children).sort((a, b) => a.localeCompare(b))
+      : Object.keys(node.children);
+
+    let subtreeHasMatch = false;
+
+    for (const key of childKeys) {
+      const child = node.children[key];
+      const hasChildren = Object.keys(child.children).length > 0;
+      const selfMatches = child.fullTopic.toLowerCase().includes(f);
+
+      // Tentatively add this node; we'll remove it if neither it nor descendants match
+      const idx = result.length;
+      result.push({
+        node: child,
+        depth,
+        hasChildren,
+        isExpanded: false,
+        key: child.fullTopic,
+      });
+
+      if (selfMatches) {
+        // Node itself matches — show it collapsed (don't recurse into children)
+        subtreeHasMatch = true;
+      } else if (hasChildren) {
+        // Node doesn't match — recurse to find descendants that do
+        const childrenHaveMatch = walk(child, depth + 1);
+        if (childrenHaveMatch) {
+          result[idx].isExpanded = true;
+          subtreeHasMatch = true;
+        } else {
+          // No match in subtree — remove
+          result.length = idx;
+        }
+      } else {
+        // Leaf, doesn't match — remove
+        result.length = idx;
+      }
+    }
+
+    return subtreeHasMatch;
+  }
+
+  walk(root, 0);
+  return result;
+}
+
 export function countDescendants(node: TopicNode): number {
   let count = node.messageCount;
   for (const child of Object.values(node.children)) {

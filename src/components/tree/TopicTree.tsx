@@ -2,7 +2,7 @@ import { createMemo, createSignal, For } from "solid-js";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { useTopicTree } from "../../stores/topics";
 import { useUI } from "../../stores/ui";
-import { flattenVisibleNodes, collectAllNodePaths, hasRetainedInTree, getNodeByTopic } from "../../lib/topic-tree";
+import { flattenVisibleNodes, flattenFilteredNodes, collectAllNodePaths, hasRetainedInTree, getNodeByTopic } from "../../lib/topic-tree";
 import TopicRow from "./TopicRow";
 
 export default function TopicTree() {
@@ -15,11 +15,10 @@ export default function TopicTree() {
   const [filter, setFilter] = createSignal("");
 
   const flatNodes = createMemo(() => {
-    let nodes = flattenVisibleNodes(topicTree, expandedNodes(), sortTree());
-    const f = filter().toLowerCase();
-    if (f) {
-      nodes = nodes.filter((n) => n.key.toLowerCase().includes(f));
-    }
+    const f = filter().trim();
+    let nodes = f
+      ? flattenFilteredNodes(topicTree, f, sortTree())
+      : flattenVisibleNodes(topicTree, expandedNodes(), sortTree());
     if (showRetainedOnly()) {
       nodes = nodes.filter((n) => hasRetainedInTree(n.node));
     }
