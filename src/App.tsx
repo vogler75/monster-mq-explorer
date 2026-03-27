@@ -7,6 +7,7 @@ import { useTopicTree } from "./stores/topics";
 import { useUI } from "./stores/ui";
 import { broadcastMessages, broadcastChartMessage } from "./stores/tabStore";
 import { fetchArchiveGroups } from "./lib/monstermq-api";
+import { login as winccUaLogin, loginAndBrowse as winccUaBrowse } from "./lib/winccua-api";
 import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
@@ -35,7 +36,7 @@ export default function App() {
   const { connections, activeConnectionId, setActiveConnectionId, getConnection } =
     useConnections();
   const { processBatch } = useTopicTree();
-  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, showConnectionModal, showSubscriptionModal, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
+  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, showConnectionModal, showSubscriptionModal, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
 
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
 
@@ -116,6 +117,44 @@ export default function App() {
       fetchArchiveGroups(config.monsterMqGraphqlUrl)
         .then((groups) => setArchiveGroups(connectionId, groups.map((g) => g.name)))
         .catch((err) => console.error(`[MonsterMQ:${connectionId}] Failed to fetch archive groups:`, err));
+    }
+
+    if (config.connectionType === "winccua") {
+      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol, path: config.path, username: config.username, password: config.password };
+      // Login and build topic→tagName mapping for history queries
+      const splitters = [...new Set(["::"].concat([...config.tagPathSplit]))];
+      function tagNameToTopic(name: string): string {
+        let result = name;
+        for (const s of splitters) result = result.split(s).join("/");
+        return result;
+      }
+      const nameFilters = config.subscriptions
+        .filter((s) => !s.tags || s.tags.length === 0)
+        .map((s) => s.topic.trim())
+        .filter((t) => t.length > 0);
+      const explicitTags = config.subscriptions
+        .filter((s) => s.tags && s.tags.length > 0)
+        .flatMap((s) => s.tags!);
+
+      (async () => {
+        try {
+          const token = await winccUaLogin(browseConfig);
+          if (token) setWinccToken(connectionId, token);
+
+          let browsedTags: string[] = [];
+          if (nameFilters.length > 0) {
+            browsedTags = await winccUaBrowse(browseConfig, nameFilters);
+          }
+          const allTags = [...explicitTags, ...browsedTags];
+          const mapping = new Map<string, string>();
+          for (const tag of allTags) {
+            mapping.set(tagNameToTopic(tag), tag);
+          }
+          setTopicTagNameMap(connectionId, mapping);
+        } catch (err) {
+          console.error(`[WinCC UA:${connectionId}] Failed to build tag mapping:`, err);
+        }
+      })();
     }
   }
 

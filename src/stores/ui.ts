@@ -20,6 +20,12 @@ const [showConnectionModal, setShowConnectionModal] = createSignal(false);
 const [showSubscriptionModal, setShowSubscriptionModal] = createSignal(false);
 const [editingConnectionId, setEditingConnectionId] = createSignal<string | null>(null);
 const [archiveGroupsMap, setArchiveGroupsMap] = createSignal<Map<string, string[]>>(new Map());
+// WinCC UA: logging tags per topic per connection — Map<connectionId, Map<tagName, loggingTagNames[]>>
+const [loggingTagsMap, setLoggingTagsMap] = createSignal<Map<string, Map<string, string[]>>>(new Map());
+// WinCC UA: cached auth tokens per connection
+const [winccTokens, setWinccTokens] = createSignal<Map<string, string>>(new Map());
+// WinCC UA: topic path → original tag name mapping per connection
+const [topicTagNameMap, setTopicTagNameMap] = createSignal<Map<string, Map<string, string>>>(new Map());
 
 export function useUI() {
   return {
@@ -89,6 +95,33 @@ export function useUI() {
     },
     setArchiveGroups(connectionId: string, groups: string[]) {
       setArchiveGroupsMap((prev) => new Map(prev).set(connectionId, groups));
+    },
+
+    getLoggingTags(connectionId: string, tagName: string): string[] {
+      return loggingTagsMap().get(connectionId)?.get(tagName) ?? [];
+    },
+    setLoggingTags(connectionId: string, tagName: string, loggingTags: string[]) {
+      setLoggingTagsMap((prev) => {
+        const next = new Map(prev);
+        const inner = new Map(next.get(connectionId) ?? []);
+        inner.set(tagName, loggingTags);
+        next.set(connectionId, inner);
+        return next;
+      });
+    },
+
+    getOriginalTagName(connectionId: string, topic: string): string | undefined {
+      return topicTagNameMap().get(connectionId)?.get(topic);
+    },
+    setTopicTagNameMap(connectionId: string, mapping: Map<string, string>) {
+      setTopicTagNameMap((prev) => new Map(prev).set(connectionId, mapping));
+    },
+
+    getWinccToken(connectionId: string): string | undefined {
+      return winccTokens().get(connectionId);
+    },
+    setWinccToken(connectionId: string, token: string) {
+      setWinccTokens((prev) => new Map(prev).set(connectionId, token));
     },
 
     expandTo(topic: string) {
