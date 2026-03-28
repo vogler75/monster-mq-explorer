@@ -19,6 +19,7 @@ const [flashEnabled, setFlashEnabled] = createSignal(true);
 const [showConnectionModal, setShowConnectionModal] = createSignal(false);
 const [showSubscriptionModal, setShowSubscriptionModal] = createSignal(false);
 const [editingConnectionId, setEditingConnectionId] = createSignal<string | null>(null);
+const [showPublishPanel, setShowPublishPanel] = createSignal(false);
 const [archiveGroupsMap, setArchiveGroupsMap] = createSignal<Map<string, string[]>>(new Map());
 // WinCC UA: logging tags per topic per connection — Map<connectionId, Map<tagName, loggingTagNames[]>>
 const [loggingTagsMap, setLoggingTagsMap] = createSignal<Map<string, Map<string, string[]>>>(new Map());
@@ -65,6 +66,9 @@ export function useUI() {
     setConnectionStatus(id: string, status: ConnectionStatus) {
       setConnectionStatuses_((prev) => new Map(prev).set(id, status));
     },
+
+    showPublishPanel,
+    togglePublishPanel() { setShowPublishPanel((v) => !v); },
 
     showConnectionModal,
     setShowConnectionModal,

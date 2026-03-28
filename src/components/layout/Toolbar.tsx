@@ -12,7 +12,7 @@ interface Props {
 export default function Toolbar(props: Props) {
   const { connections, activeConnectionId } = useConnections();
   const { messagesPerSecond } = useTopicTree();
-  const { getConnectionStatus, setShowSubscriptionModal, flashEnabled, toggleFlashEnabled } = useUI();
+  const { getConnectionStatus, setShowSubscriptionModal, flashEnabled, toggleFlashEnabled, showPublishPanel, togglePublishPanel } = useUI();
 
   const [pickerOpen, setPickerOpen] = createSignal(false);
 
@@ -74,6 +74,22 @@ export default function Toolbar(props: Props) {
 
       {/* Actions */}
       <div class="flex items-center gap-2 ml-auto">
+        <button
+          class="p-1.5 rounded transition-colors"
+          classList={{
+            "text-blue-400 bg-blue-400/10": showPublishPanel(),
+            "text-slate-500 hover:text-slate-300": !showPublishPanel(),
+          }}
+          onClick={togglePublishPanel}
+          title="Toggle Publish panel"
+        >
+          <span class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 8h9M8 4l5 4-5 4" />
+            </svg>
+            <span class="text-xs">Publish</span>
+          </span>
+        </button>
         <span class="text-xs text-slate-600 select-all" title="App version">v{__APP_VERSION__}</span>
         <Show when={activeStatus() === "connected"}>
           <button

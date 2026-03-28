@@ -12,6 +12,7 @@ import { login as winccOaLogin, loginAndBrowse as winccOaBrowse } from "./lib/wi
 import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
+import PublishPane from "./components/detail/PublishPane";
 import ConnectionModal from "./components/connection/ConnectionModal";
 import SubscriptionModal from "./components/connection/SubscriptionPanel";
 
@@ -37,9 +38,10 @@ export default function App() {
   const { connections, activeConnectionId, setActiveConnectionId, getConnection } =
     useConnections();
   const { processBatch } = useTopicTree();
-  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, showConnectionModal, showSubscriptionModal, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
+  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, showConnectionModal, showSubscriptionModal, showPublishPanel, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
 
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
+  const [rightPanelWidth, setRightPanelWidth] = createSignal(300);
 
   function startResize(e: MouseEvent) {
     e.preventDefault();
@@ -47,6 +49,25 @@ export default function App() {
     const startWidth = sidebarWidth();
     function onMove(e: MouseEvent) {
       setSidebarWidth(Math.max(200, Math.min(window.innerWidth * 0.8, startWidth + e.clientX - startX)));
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }
+
+  function startRightResize(e: MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = rightPanelWidth();
+    function onMove(e: MouseEvent) {
+      setRightPanelWidth(Math.max(200, Math.min(window.innerWidth * 0.5, startWidth - (e.clientX - startX))));
     }
     function onUp() {
       document.removeEventListener("mousemove", onMove);
@@ -237,6 +258,15 @@ export default function App() {
           onMouseDown={startResize}
         />
         <DetailPane />
+        <Show when={showPublishPanel()}>
+          <div
+            class="w-1.5 cursor-col-resize bg-slate-700 hover:bg-blue-500 active:bg-blue-500 transition-colors shrink-0"
+            onMouseDown={startRightResize}
+          />
+          <div style={{ width: `${rightPanelWidth()}px`, "min-width": "200px" }} class="shrink-0">
+            <PublishPane />
+          </div>
+        </Show>
       </div>
       <Show when={showConnectionModal()}>
         <ConnectionModal />
