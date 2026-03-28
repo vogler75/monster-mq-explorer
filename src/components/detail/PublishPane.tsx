@@ -34,17 +34,45 @@ export default function PublishPane() {
   const [pubQos, setPubQos] = createSignal<0 | 1 | 2>(0);
   const [pubRetain, setPubRetain] = createSignal(false);
   const [pubFeedback, setPubFeedback] = createSignal<"" | "ok">("");
+  const [autoFill, setAutoFill] = createSignal(true);
 
-  // Pre-fill topic and payload when selected topic changes
+  function applyTopicFill(topic: string) {
+    setPubTopic(getCleanTopic(topic));
+    const node = getNodeByTopic(topicTree, topic);
+    if (node?.lastMessage) {
+      setPubPayload(payloadToString(node.lastMessage.payload));
+    }
+  }
+
+  // Pre-fill topic and payload when selected topic changes (only when auto-fill is enabled)
   createEffect(on(selectedTopic, (topic) => {
-    if (topic) {
-      setPubTopic(getCleanTopic(topic));
-      const node = getNodeByTopic(topicTree, topic);
-      if (node?.lastMessage) {
-        setPubPayload(payloadToString(node.lastMessage.payload));
-      }
+    if (topic && autoFill()) {
+      applyTopicFill(topic);
     }
   }));
+
+  function handleTopicInput(e: InputEvent & { currentTarget: HTMLInputElement }) {
+    setPubTopic(e.currentTarget.value);
+    // Once the user manually edits the topic, disable auto-fill
+    setAutoFill(false);
+  }
+
+  function toggleAutoFill() {
+    const next = !autoFill();
+    setAutoFill(next);
+    // If re-enabling, immediately populate from currently selected topic
+    if (next) {
+      const topic = selectedTopic();
+      if (topic) applyTopicFill(topic);
+    }
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      doPublish();
+    }
+  }
 
   function doPublish() {
     if (connectionStatus() !== "connected" || !pubTopic()) return;
@@ -65,11 +93,34 @@ export default function PublishPane() {
           </div>
         </Show>
         <div class="flex flex-col gap-1">
-          <label class="text-xs text-slate-400">Topic</label>
+          <div class="flex items-center justify-between">
+            <label class="text-xs text-slate-400">Topic</label>
+            <button
+              class="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 transition-colors"
+              classList={{
+                "text-blue-400 bg-blue-400/10 hover:bg-blue-400/20": autoFill(),
+                "text-slate-500 bg-slate-700/50 hover:bg-slate-700": !autoFill(),
+              }}
+              onClick={toggleAutoFill}
+              title={autoFill() ? "Auto-fill from tree is ON — click to disable" : "Auto-fill from tree is OFF — click to enable"}
+            >
+              <svg class="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
+                <Show when={autoFill()} fallback={
+                  // Unlinked icon
+                  <path d="M6.354 5.5H4a3 3 0 0 0 0 6h3a3 3 0 0 0 2.83-4H9q-.261 0-.5.06a2 2 0 0 1-1.95 1.44H4a2 2 0 1 1 0-4h1.535c.218-.376.495-.714.82-1zm4.292 1H12a3 3 0 0 1 0 6H9a3 3 0 0 1-2.83-4H7q.26 0 .5.06a2 2 0 0 0 1.95 1.44H12a2 2 0 1 0 0-4h-1.535a4 4 0 0 0-.82-1z"/>
+                }>
+                  {/* Linked icon */}
+                  <path d="M4.715 6.542 3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1 1 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4 4 0 0 1-.128-1.287zm5.57-1.084a3 3 0 0 0-4.243 4.243L7.87 11.03a3 3 0 0 0 4.243-4.243l-.793.792a2 2 0 0 1-2.83 2.83l-1.828-1.828a2 2 0 0 1 2.83-2.83l.793-.792z"/>
+                </Show>
+              </svg>
+              {autoFill() ? "Auto-fill on" : "Auto-fill off"}
+            </button>
+          </div>
           <input
             class="bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500 w-full"
             value={pubTopic()}
-            onInput={(e) => setPubTopic(e.currentTarget.value)}
+            onInput={handleTopicInput}
+            onKeyDown={handleKeyDown}
             placeholder="topic/path"
           />
         </div>
@@ -79,6 +130,7 @@ export default function PublishPane() {
             class="bg-slate-800 border border-slate-600 rounded px-2.5 py-1.5 text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500 resize-y min-h-[8rem] w-full"
             value={pubPayload()}
             onInput={(e) => setPubPayload(e.currentTarget.value)}
+            onKeyDown={handleKeyDown}
             rows={8}
           />
         </div>
@@ -122,6 +174,7 @@ export default function PublishPane() {
           <Show when={pubFeedback() === "ok"}>
             <span class="text-xs text-green-400">Sent!</span>
           </Show>
+          <span class="text-xs text-slate-600 ml-auto">⌘↵ to send</span>
         </div>
       </div>
     </div>
