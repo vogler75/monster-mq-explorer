@@ -1,6 +1,7 @@
 import { For, Show } from "solid-js";
 import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
+import { tooltip } from "../ui/tooltip";
 
 export default function ConnectionList() {
   const { connections, activeConnectionId, setActiveConnectionId } =
@@ -56,7 +57,7 @@ export default function ConnectionList() {
                     setEditingConnectionId(conn.id);
                     setShowConnectionModal(true);
                   }}
-                  title="Edit"
+                  use:tooltip="Edit"
                 >
                   <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
                     <path d="M9.5 1.5l1 1-7 7H2v-1.5l7-7z" />
@@ -68,7 +69,7 @@ export default function ConnectionList() {
                     e.stopPropagation();
                     deleteConnection(conn.id);
                   }}
-                  title="Delete"
+                  use:tooltip="Delete"
                 >
                   <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
                     <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.5" fill="none" />

@@ -8,6 +8,7 @@ import { useUI } from "../../stores/ui";
 import { useTopicTree } from "../../stores/topics";
 import { getNodeByTopic } from "../../lib/topic-tree";
 import { payloadToString, formatTimestamp } from "../../lib/format";
+import { tooltip } from "../ui/tooltip";
 
 function parseJsonObject(payload: Uint8Array): Record<string, unknown> | null {
   try {
@@ -252,7 +253,7 @@ export default function MessageTable(props: Props) {
         <button
           class="p-0.5 text-slate-500 hover:text-red-400 transition-colors"
           onClick={() => { clearLog(pinnedTopics()); props.onSelectMessage(null); }}
-          title="Clear log (keeps pinned rows)"
+          use:tooltip="Clear log (keeps pinned rows)"
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4M5 6v4M9 6v4" />
@@ -286,7 +287,7 @@ export default function MessageTable(props: Props) {
               }
             }
           }}
-          title={logMode() === "live" ? "Live view: one row per topic (click for history)" : "History view: all messages (click for live)"}
+          use:tooltip={logMode() === "live" ? "Live view: one row per topic (click for history)" : "History view: all messages (click for live)"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <circle cx="7" cy="7" r="2" />
@@ -301,7 +302,7 @@ export default function MessageTable(props: Props) {
             "text-slate-500 hover:text-slate-300": logSort() === "time",
           }}
           onClick={() => setLogSort((s) => s === "time" ? "topic" : "time")}
-          title={logSort() === "topic" ? "Sorted by topic (click for time)" : "Sorted by time (click for topic)"}
+          use:tooltip={logSort() === "topic" ? "Sorted by topic (click for time)" : "Sorted by time (click for topic)"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             {logSort() === "topic"
@@ -316,7 +317,7 @@ export default function MessageTable(props: Props) {
             "text-slate-500 hover:text-slate-300": !logAutoScroll(),
           }}
           onClick={() => setLogAutoScroll((v) => !v)}
-          title={logAutoScroll() ? "Auto-scroll on" : "Auto-scroll off"}
+          use:tooltip={logAutoScroll() ? "Auto-scroll on" : "Auto-scroll off"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M7 2v8M4 7l3 3 3-3M2 12h10" />
@@ -325,7 +326,7 @@ export default function MessageTable(props: Props) {
         <button
           class="p-0.5 rounded text-slate-400 hover:text-slate-200 transition-colors"
           onClick={() => setLogOrder((o) => o === "newest-top" ? "newest-bottom" : "newest-top")}
-          title={logOrder() === "newest-top"
+          use:tooltip={logOrder() === "newest-top"
             ? (logSort() === "topic" ? "Z-A (click for A-Z)" : "Newest on top (click for bottom)")
             : (logSort() === "topic" ? "A-Z (click for Z-A)" : "Newest on bottom (click for top)")}
         >
@@ -342,7 +343,7 @@ export default function MessageTable(props: Props) {
             "text-slate-500 hover:text-slate-300": !payloadMultiline(),
           }}
           onClick={() => setPayloadMultiline((v) => !v)}
-          title={payloadMultiline() ? "Payload: full text (click for single line)" : "Payload: single line (click for full text)"}
+          use:tooltip={payloadMultiline() ? "Payload: full text (click for single line)" : "Payload: single line (click for full text)"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 3h10M2 6h10M2 9h6" />
@@ -355,7 +356,7 @@ export default function MessageTable(props: Props) {
             "text-slate-500 hover:text-slate-300": !jsonColumnsEnabled(),
           }}
           onClick={() => setJsonColumnsEnabled((v) => !v)}
-          title={jsonColumnsEnabled() ? "JSON columns on (click to disable)" : "JSON columns off (click to expand JSON keys as columns)"}
+          use:tooltip={jsonColumnsEnabled() ? "JSON columns on (click to disable)" : "JSON columns off (click to expand JSON keys as columns)"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 2h3v10H2M9 2h3v10H9M5 7h4" />
@@ -373,7 +374,7 @@ export default function MessageTable(props: Props) {
             "text-slate-500 hover:text-amber-400": !hasPinned(),
           }}
           onClick={pinSelected}
-          title="Sticky all visible rows"
+          use:tooltip="Sticky all visible rows"
         >
           {/* Pin icon */}
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -386,7 +387,7 @@ export default function MessageTable(props: Props) {
           <button
             class="p-0.5 rounded text-amber-500 hover:text-red-400 transition-colors"
             onClick={unpinSelected}
-            title="Unpin all rows"
+            use:tooltip="Unpin all rows"
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M9 1L13 5L9.5 8.5L10 13L7 10L4 13L4.5 8.5L1 5L5 1Z" />
@@ -404,7 +405,7 @@ export default function MessageTable(props: Props) {
               "text-slate-500 hover:text-slate-300": !showWatchlistMenu(),
             }}
             onClick={() => { setShowWatchlistMenu((v) => !v); setShowSaveInput(false); }}
-            title="Watchlists (save/load sticky rows)"
+            use:tooltip="Watchlists (save/load sticky rows)"
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M2 2h10v10H2zM2 5h10M5 5v7" />
@@ -478,7 +479,7 @@ export default function MessageTable(props: Props) {
                         <button
                           class="flex-1 text-left text-xs text-slate-300 group-hover:text-slate-100 truncate"
                           onClick={() => { pinTopics(getWatchlistTopics(wl.id)); setShowWatchlistMenu(false); }}
-                          title={`Load "${wl.name}" (${wl.topics.length} topics)`}
+                          use:tooltip={`Load "${wl.name}" (${wl.topics.length} topics)`}
                         >
                           {wl.name}
                           <span class="ml-1.5 text-slate-500">{wl.topics.length}</span>
@@ -486,7 +487,7 @@ export default function MessageTable(props: Props) {
                         <button
                           class="p-0.5 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                           onClick={() => deleteWatchlist(wl.id)}
-                          title="Delete watchlist"
+                          use:tooltip="Delete watchlist"
                         >
                           <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
                             <path d="M2 2l8 8M10 2l-8 8" />
@@ -505,7 +506,7 @@ export default function MessageTable(props: Props) {
           class="p-0.5 rounded text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           onClick={exportCsv}
           disabled={displayMessages().length === 0}
-          title="Export as CSV"
+          use:tooltip="Export as CSV"
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M7 2v7M4 6l3 3 3-3M2 11h10v1H2z" />
@@ -627,7 +628,7 @@ export default function MessageTable(props: Props) {
                       <div
                         class="w-4 shrink-0 flex items-center justify-center hover:bg-slate-600/60 self-stretch cursor-pointer"
                         onClick={(e) => handlePinClick(e, vRow.index)}
-                        title={pinned() ? "Unsticky" : "Sticky"}
+                        use:tooltip={pinned() ? "Unsticky" : "Sticky"}
                       >
                         <Show when={pinned()} fallback={
                           <svg class="w-2.5 h-2.5 text-slate-600 opacity-0 group-hover:opacity-100" viewBox="0 0 14 14" fill="currentColor">
@@ -678,7 +679,7 @@ export default function MessageTable(props: Props) {
                     <div
                       class="w-4 shrink-0 flex items-center justify-center hover:bg-slate-600/60 self-stretch cursor-pointer"
                       onClick={(e) => handlePinClick(e, i())}
-                      title={pinned() ? "Unsticky" : "Sticky"}
+                      use:tooltip={pinned() ? "Unsticky" : "Sticky"}
                     >
                       <Show when={pinned()}>
                         <svg class="w-2.5 h-2.5 text-amber-400 mt-0.5" viewBox="0 0 14 14" fill="currentColor">

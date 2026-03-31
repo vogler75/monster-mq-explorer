@@ -1,4 +1,5 @@
 import { createSignal, For, Show } from "solid-js";
+import { tooltip } from "../ui/tooltip";
 
 interface Props {
   data: unknown;
@@ -20,7 +21,7 @@ function ChartGutter(props: { path: string; depth: number; onChartPath: (path: s
     <span
       class="absolute cursor-pointer text-slate-600 hover:text-blue-400 transition-colors select-none font-mono text-sm"
       style={{ left: `${offset()}px`, width: `${GUTTER_W}px`, "text-align": "center" }}
-      title={`Add "${props.path}" to chart`}
+      use:tooltip={`Add "${props.path}" to chart`}
       onClick={(e) => { e.stopPropagation(); props.onChartPath(props.path); }}
     >∿</span>
   );

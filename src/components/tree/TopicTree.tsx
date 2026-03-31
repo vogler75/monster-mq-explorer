@@ -4,6 +4,7 @@ import { useTopicTree } from "../../stores/topics";
 import { useUI } from "../../stores/ui";
 import { flattenVisibleNodes, flattenFilteredNodes, collectAllNodePaths, hasRetainedInTree, getNodeByTopic } from "../../lib/topic-tree";
 import TopicRow from "./TopicRow";
+import { tooltip } from "../ui/tooltip";
 
 export default function TopicTree() {
   const { topicTree, clearTree, clearSubtree } = useTopicTree();
@@ -52,7 +53,7 @@ export default function TopicTree() {
             "text-slate-500 hover:text-slate-300": !sortTree(),
           }}
           onClick={toggleSort}
-          title={sortTree() ? "Sorted A-Z (click to unsort)" : "Sort A-Z"}
+          use:tooltip={sortTree() ? "Sorted A-Z (click to unsort)" : "Sort A-Z"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 3h10M2 7h6M2 11h3" />
@@ -65,7 +66,7 @@ export default function TopicTree() {
             "text-slate-500 hover:text-slate-300": !showRetainedOnly(),
           }}
           onClick={toggleShowRetainedOnly}
-          title={showRetainedOnly() ? "Show all (click to show all)" : "Show retained only"}
+          use:tooltip={showRetainedOnly() ? "Show all (click to show all)" : "Show retained only"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 7l2 2 4-4M12 7a5 5 0 1 0-10 0 5 5 0 0 0 10 0" />
@@ -81,7 +82,7 @@ export default function TopicTree() {
               "text-slate-500 hover:text-slate-300": !autoExpand(),
             }}
             onClick={toggleAutoExpand}
-            title={autoExpand() ? "Auto-expand on (click to disable)" : "Auto-expand off"}
+            use:tooltip={autoExpand() ? "Auto-expand on (click to disable)" : "Auto-expand off"}
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M7 2v10M2 7h10" />
@@ -101,7 +102,7 @@ export default function TopicTree() {
                 expandAll(collectAllNodePaths(topicTree));
               }
             }}
-            title={selectedTopic() ? "Expand selected node" : "Expand all"}
+            use:tooltip={selectedTopic() ? "Expand selected node" : "Expand all"}
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M2 4h10M2 7h7M2 10h4" />
@@ -111,7 +112,7 @@ export default function TopicTree() {
           <button
             class="p-1 rounded shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
             onClick={() => expandAll([])}
-            title="Collapse all"
+            use:tooltip="Collapse all"
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M2 4h10M2 7h7M2 10h4" />
@@ -130,7 +131,7 @@ export default function TopicTree() {
             }}
             disabled={!selectedTopic()}
             onClick={() => setSelectedTopic(null)}
-            title="Deselect topic"
+            use:tooltip="Deselect topic"
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M4 4l6 6M10 4l-6 6" />
@@ -149,7 +150,7 @@ export default function TopicTree() {
                 setSelectedTopic(null);
               }
             }}
-            title={selectedTopic() ? "Clear selected node and children" : "Select a node to clear"}
+            use:tooltip={selectedTopic() ? "Clear selected node and children" : "Select a node to clear"}
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4M5 6v4M9 6v4" />

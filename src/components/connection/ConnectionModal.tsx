@@ -7,6 +7,7 @@ import type { ConnectionConfig, Subscription } from "../../types/mqtt";
 import { createDefaultConnection, createDefaultWinCCUAConnection, createDefaultWinCCOAConnection } from "../../types/mqtt";
 import TagBrowserModal from "./TagBrowserModal";
 import { loginAndBrowse as winccoaBrowse } from "../../lib/winccoa-api";
+import { tooltip } from "../ui/tooltip";
 
 export default function ConnectionModal() {
   const { addConnection, updateConnection, getConnection } = useConnections();
@@ -436,7 +437,7 @@ export default function ConnectionModal() {
                               <button
                                 class="p-0.5 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
                                 onClick={() => removeTagFromSub(index(), tag())}
-                                title="Remove tag"
+                                use:tooltip="Remove tag"
                               >
                                 <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
                                   <path d="M3 3l6 6M9 3l-6 6" />

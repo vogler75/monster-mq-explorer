@@ -15,6 +15,7 @@ import { useTabChartData, useTabPinnedTopics, useTabMessageLog } from "../../sto
 import JsonViewer from "./JsonViewer";
 import ChartPane from "./ChartPane";
 import HistoryPane from "./HistoryPane";
+import { tooltip } from "../ui/tooltip";
 
 type Tab = "formatted" | "raw" | "hex" | "pic";
 
@@ -216,12 +217,12 @@ export default function MessageDetail(props: Props) {
         <Show when={getDisplayTopic()}>
           <div class="flex-1" />
           <div class="flex items-center gap-1.5 px-3 shrink-0 min-w-0">
-            <span class="text-xs font-mono text-slate-400 truncate max-w-[250px]" title={getDisplayTopic()}>
+            <span class="text-xs font-mono text-slate-400 truncate max-w-[250px]" use:tooltip={getDisplayTopic()}>
               {getDisplayTopic()}
             </span>
             <button
               class="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-300 transition-colors"
-              title="Copy topic (without connection name)"
+              use:tooltip="Copy topic (without connection name)"
               onClick={copyTopicToClipboard}
             >
               <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">

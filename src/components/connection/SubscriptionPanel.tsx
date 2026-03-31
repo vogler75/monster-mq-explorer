@@ -4,6 +4,7 @@ import { useUI } from "../../stores/ui";
 import type { Subscription } from "../../types/mqtt";
 import TagBrowserModal from "./TagBrowserModal";
 import { loginAndBrowse as winccoaBrowse } from "../../lib/winccoa-api";
+import { tooltip } from "../ui/tooltip";
 
 export default function SubscriptionModal() {
   const { connections, activeConnectionId, addSubscription, removeSubscriptionAt, updateSubscription, removeTagFromSubscription } =
@@ -83,7 +84,7 @@ export default function SubscriptionModal() {
                     }}
                   />
                   <Show when={sub.tags && sub.tags.length > 0} fallback={
-                    <span class="flex-1 min-w-0 text-sm text-slate-300 truncate font-mono text-xs" title={sub.topic}>
+                    <span class="flex-1 min-w-0 text-sm text-slate-300 truncate font-mono text-xs" use:tooltip={sub.topic}>
                       {sub.topic}
                     </span>
                   }>
@@ -115,7 +116,7 @@ export default function SubscriptionModal() {
                   <button
                     class="p-1 text-slate-500 hover:text-red-400 shrink-0 transition-colors"
                     onClick={() => handleRemove(index(), sub.topic)}
-                    title="Remove"
+                    use:tooltip="Remove"
                   >
                     <svg class="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
                       <path d="M3 3l6 6M9 3l-6 6" />
@@ -131,7 +132,7 @@ export default function SubscriptionModal() {
                           <button
                             class="p-0.5 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
                             onClick={() => removeTagFromSubscription(activeConnectionId()!, index(), tag())}
-                            title="Remove tag"
+                            use:tooltip="Remove tag"
                           >
                             <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
                               <path d="M3 3l6 6M9 3l-6 6" />

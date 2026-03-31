@@ -3,6 +3,7 @@ import { useConnections } from "../../stores/connections";
 import { useTopicTree } from "../../stores/topics";
 import { useUI } from "../../stores/ui";
 import ConnectionPicker from "../connection/ConnectionPicker";
+import { tooltip } from "../ui/tooltip";
 
 interface Props {
   onConnect: (id: string) => void;
@@ -63,7 +64,7 @@ export default function Toolbar(props: Props) {
               "text-slate-500 hover:text-slate-300": !flashEnabled(),
             }}
             onClick={toggleFlashEnabled}
-            title={flashEnabled() ? "Flash on update (click to disable)" : "Flash on update disabled"}
+            use:tooltip={flashEnabled() ? "Flash on update (click to disable)" : "Flash on update disabled"}
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M8 1L4 8h5l-3 5 7-8H8z" />
@@ -81,7 +82,7 @@ export default function Toolbar(props: Props) {
             "text-slate-500 hover:text-slate-300": !showPublishPanel(),
           }}
           onClick={togglePublishPanel}
-          title="Toggle Publish panel"
+          use:tooltip="Toggle Publish panel"
         >
           <span class="flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -90,7 +91,7 @@ export default function Toolbar(props: Props) {
             <span class="text-xs">Publish</span>
           </span>
         </button>
-        <span class="text-xs text-slate-600 select-all" title="App version">v{__APP_VERSION__}</span>
+        <span class="text-xs text-slate-600 select-all" use:tooltip="App version">v{__APP_VERSION__}</span>
         <Show when={activeStatus() === "connected"}>
           <button
             class="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"

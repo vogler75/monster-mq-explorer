@@ -13,6 +13,7 @@ import {
   useTabPinnedTopics,
   type TabContextValue,
 } from "../../stores/tabStore";
+import { tooltip } from "../ui/tooltip";
 
 interface TabState {
   id: string;
@@ -144,7 +145,7 @@ export default function DetailPane() {
         <button
           class="px-2 py-1 text-xs text-slate-500 hover:text-blue-400 hover:bg-slate-800 transition-colors shrink-0"
           onClick={openNewTab}
-          title="Open new tab"
+          use:tooltip="Open new tab"
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M7 2v10M2 7h10" />
@@ -302,7 +303,7 @@ function TabContent() {
             setTableHeight(opening ? Math.floor(containerRef.getBoundingClientRect().height / 2) : 0);
             setLogEnabled(opening);
           }}
-          title={tableHeight() > 0 ? "Hide message log" : "Show message log"}
+          use:tooltip={tableHeight() > 0 ? "Hide message log" : "Show message log"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="1" y="2" width="12" height="10" rx="1" />
@@ -317,7 +318,7 @@ function TabContent() {
             "text-slate-500 hover:text-slate-300": !detailVisible(),
           }}
           onClick={() => setDetailVisible((v) => !v)}
-          title={detailVisible() ? "Hide detail pane" : "Show detail pane"}
+          use:tooltip={detailVisible() ? "Hide detail pane" : "Show detail pane"}
         >
           <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="1" y="2" width="12" height="10" rx="1" />

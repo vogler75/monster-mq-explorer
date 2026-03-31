@@ -4,6 +4,7 @@ import { useConnections } from "../../stores/connections";
 import { useTopicTree } from "../../stores/topics";
 import { getNodeByTopic } from "../../lib/topic-tree";
 import { payloadToString } from "../../lib/format";
+import { tooltip } from "../ui/tooltip";
 
 export default function PublishPane() {
   const { selectedTopic, publish, getConnectionStatus } = useUI();
@@ -102,7 +103,7 @@ export default function PublishPane() {
                 "text-slate-500 bg-slate-700/50 hover:bg-slate-700": !autoFill(),
               }}
               onClick={toggleAutoFill}
-              title={autoFill() ? "Auto-fill from tree is ON — click to disable" : "Auto-fill from tree is OFF — click to enable"}
+              use:tooltip={autoFill() ? "Auto-fill from tree is ON — click to disable" : "Auto-fill from tree is OFF — click to enable"}
             >
               <svg class="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
                 <Show when={autoFill()} fallback={

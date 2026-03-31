@@ -16,6 +16,7 @@ import DetailPane from "./components/layout/DetailPane";
 import PublishPane from "./components/detail/PublishPane";
 import ConnectionModal from "./components/connection/ConnectionModal";
 import SubscriptionModal from "./components/connection/SubscriptionPanel";
+import { TooltipOverlay } from "./components/ui/TooltipOverlay";
 
 // One worker (or IPC adapter) per connection, keyed by connectionId
 const workers = new Map<string, Worker | WorkerLike>();
@@ -322,6 +323,7 @@ export default function App() {
       <Show when={showSubscriptionModal()}>
         <SubscriptionModal />
       </Show>
+      <TooltipOverlay />
     </div>
   );
 }

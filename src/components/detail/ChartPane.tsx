@@ -4,6 +4,7 @@ import "uplot/dist/uPlot.min.css";
 import { seriesKey } from "../../stores/chartData";
 import { useTabChartData, useTabMessageLog, useTabPinnedTopics } from "../../stores/tabStore";
 import { collectJsonPaths, extractValue } from "../../lib/jsonPath";
+import { tooltip } from "../ui/tooltip";
 
 /**
  * Build a short but unique label for a topic within a set of topics.
@@ -95,7 +96,7 @@ function TopicConfigPill(props: TopicConfigPillProps) {
           <span class="text-slate-400">({props.selectedPaths.length})</span>
         )}
         {props.hasError && (
-          <span class="text-amber-400 flex-shrink-0" title="Cannot convert payload to number — configure JSON path">&#x26A0;</span>
+          <span class="text-amber-400 flex-shrink-0" use:tooltip="Cannot convert payload to number — configure JSON path">&#x26A0;</span>
         )}
       </button>
 

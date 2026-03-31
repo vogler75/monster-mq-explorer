@@ -5,6 +5,7 @@ import { useTabPinnedTopics } from "../../stores/tabStore";
 import { fetchArchivedMessages } from "../../lib/monstermq-api";
 import { browseLoggingTags, queryLoggedTagValues, type BrowseConfig } from "../../lib/winccua-api";
 import { queryDpGetPeriod, type BrowseConfig as OaBrowseConfig } from "../../lib/winccoa-api";
+import { tooltip } from "../ui/tooltip";
 
 function toLocalDatetime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -373,7 +374,7 @@ export default function HistoryPane() {
           class="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={exportCsv}
           disabled={results().length === 0}
-          title="Export as CSV"
+          use:tooltip="Export as CSV"
         >
           Export CSV
         </button>
@@ -411,7 +412,7 @@ export default function HistoryPane() {
                         const loggingTags = () => getLoggingTags(group.connectionId, topic);
                         return (
                           <div class="flex items-center gap-1.5 text-xs">
-                            <span class="text-slate-400 font-mono truncate max-w-[200px]" title={topic}>{topic}</span>
+                            <span class="text-slate-400 font-mono truncate max-w-[200px]" use:tooltip={topic}>{topic}</span>
                             <Show when={loggingTags().length > 0} fallback={
                               <span class="text-slate-500 italic">no logging tags</span>
                             }>
@@ -487,8 +488,8 @@ export default function HistoryPane() {
                 {(row) => (
                   <tr class="border-b border-slate-700/50 hover:bg-slate-800/50">
                     <td class="px-3 py-1 text-slate-400 font-mono whitespace-nowrap overflow-hidden text-ellipsis">{formatTs(row.timestamp)}</td>
-                    <td class="px-3 py-1 text-slate-300 font-mono overflow-hidden text-ellipsis whitespace-nowrap" title={row.topic}>{row.topic}</td>
-                    <td class="px-3 py-1 text-slate-300 font-mono overflow-hidden text-ellipsis whitespace-nowrap" title={row.payload}>{row.payload}</td>
+                    <td class="px-3 py-1 text-slate-300 font-mono overflow-hidden text-ellipsis whitespace-nowrap" use:tooltip={row.topic}>{row.topic}</td>
+                    <td class="px-3 py-1 text-slate-300 font-mono overflow-hidden text-ellipsis whitespace-nowrap" use:tooltip={row.payload}>{row.payload}</td>
                   </tr>
                 )}
               </For>
