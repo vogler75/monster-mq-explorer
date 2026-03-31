@@ -56,10 +56,10 @@ function getOrCreateWorker(connectionId: string, type: "mqtt" | "winccua" | "win
 }
 
 export default function App() {
-  const { connections, activeConnectionId, setActiveConnectionId, getConnection } =
+  const { connections, activeConnectionId, setActiveConnectionId, getConnection, removeConnection } =
     useConnections();
   const { processBatch } = useTopicTree();
-  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, showConnectionModal, showSubscriptionModal, showPublishPanel, setPublishFn, setSubscribeFn, setUnsubscribeFn, autoExpand, expandTopics, selectedTopic } = useUI();
+  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, clearConnectionState, showConnectionModal, showSubscriptionModal, showPublishPanel, setPublishFn, setSubscribeFn, setUnsubscribeFn, setDeleteConnectionFn, autoExpand, expandTopics, selectedTopic } = useUI();
 
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
   const [rightPanelWidth, setRightPanelWidth] = createSignal(300);
@@ -223,6 +223,9 @@ export default function App() {
         .filter((s) => !s.tags || s.tags.length === 0)
         .map((s) => s.topic.trim())
         .filter((t) => t.length > 0);
+      const explicitTags = config.subscriptions
+        .filter((s) => s.tags && s.tags.length > 0)
+        .flatMap((s) => s.tags!);
 
       (async () => {
         try {
@@ -233,8 +236,9 @@ export default function App() {
           if (nameFilters.length > 0) {
             browsedTags = await winccOaBrowse(browseConfig, nameFilters);
           }
+          const allTags = [...explicitTags, ...browsedTags];
           const mapping = new Map<string, string>();
-          for (const tag of browsedTags) {
+          for (const tag of allTags) {
             mapping.set(oaTagNameToTopic(tag), tag);
           }
           setTopicTagNameMap(connectionId, mapping);
@@ -268,9 +272,22 @@ export default function App() {
     if (w) w.postMessage({ type: "unsubscribe", topic } as WorkerCommand);
   }
 
+  function deleteConnection(connectionId: string) {
+    const w = workers.get(connectionId);
+    if (w) {
+      w.postMessage({ type: "disconnect" } as WorkerCommand);
+      w.terminate();
+      workers.delete(connectionId);
+      workerIsIpc.delete(connectionId);
+    }
+    clearConnectionState(connectionId);
+    removeConnection(connectionId);
+  }
+
   setPublishFn(publish);
   setSubscribeFn(subscribe);
   setUnsubscribeFn(unsubscribe);
+  setDeleteConnectionFn(deleteConnection);
 
   onCleanup(() => {
     for (const w of workers.values()) w.terminate();

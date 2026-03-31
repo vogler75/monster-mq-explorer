@@ -400,7 +400,8 @@ export default function ChartPane() {
                 <input
                   type="number"
                   value={maxPoints()}
-                  onInput={(e) => setMaxPoints(Math.max(10, parseInt(e.currentTarget.value) || 1000))}
+                  onChange={(e) => setMaxPoints(Math.max(10, parseInt(e.currentTarget.value) || 1000))}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                   class="w-16 px-1.5 py-0.5 bg-slate-700 border border-slate-600 rounded text-slate-200 text-xs focus:outline-none focus:border-blue-500"
                   min="10"
                   max="10000"
