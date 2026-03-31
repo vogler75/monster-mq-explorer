@@ -1,4 +1,4 @@
-import { batch, createMemo, createSignal, onCleanup, Show } from "solid-js";
+import { batch, createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import { unwrap } from "solid-js/store";
 import type { WorkerCommand } from "./workers/mqtt.protocol";
 import type { WorkerEvent } from "./workers/mqtt.protocol";
@@ -57,7 +57,7 @@ function getOrCreateWorker(connectionId: string, type: "mqtt" | "winccua" | "win
 }
 
 export default function App() {
-  const { connections, activeConnectionId, setActiveConnectionId, getConnection, removeConnection } =
+  const { connections, connectionsLoaded, activeConnectionId, setActiveConnectionId, getConnection, removeConnection } =
     useConnections();
   const { processBatch } = useTopicTree();
   const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, clearConnectionState, showConnectionModal, showSubscriptionModal, showPublishPanel, setPublishFn, setSubscribeFn, setUnsubscribeFn, setDeleteConnectionFn, autoExpand, expandTopics, selectedTopic } = useUI();
@@ -146,19 +146,30 @@ export default function App() {
     return id ? workers.get(id) ?? null : null;
   }
 
-  /** Sync the set of TLS-cert-bypass hosts to the Electron main process */
-  function syncIgnoreCertHosts() {
+  /** Sync the set of TLS-cert-bypass hosts to the Electron main process.
+   *  Returns a Promise that resolves once the main process has applied the proc
+   *  (so callers can await before opening TLS connections). */
+  async function syncIgnoreCertHosts() {
     if (!window.mqttIpc?.setIgnoreCertHosts) return;
     const hosts = connections
-      .filter((c) => c.ignoreCertErrors && (c.protocol === "wss" || c.protocol === "mqtts"))
+      .filter((c) => c.ignoreCertErrors)
       .map((c) => c.host);
-    window.mqttIpc.setIgnoreCertHosts(hosts);
+    await window.mqttIpc.setIgnoreCertHosts(hosts);
   }
 
-  function connect(connectionId: string) {
+  // On startup: as soon as connections are loaded from IndexedDB, push any
+  // ignoreCertErrors hosts to the main process so they are ready before the
+  // user clicks Connect (avoids the async IPC race on first connect).
+  createEffect(() => {
+    if (connectionsLoaded()) {
+      void syncIgnoreCertHosts();
+    }
+  });
+
+  async function connect(connectionId: string) {
     const config = getConnection(connectionId);
     if (!config) return;
-    syncIgnoreCertHosts();
+    await syncIgnoreCertHosts();
     const w = getOrCreateWorker(connectionId, config.connectionType, config.protocol);
     setupWorkerListeners(w, connectionId);
     setConnectionStatus(connectionId, "connecting");

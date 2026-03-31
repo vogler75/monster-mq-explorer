@@ -9,7 +9,7 @@ declare global {
     mqttIpc?: {
       send: (connectionId: string, command: WorkerCommand) => void;
       onEvent: (callback: (connectionId: string, event: WorkerEvent) => void) => () => void;
-      setIgnoreCertHosts: (hosts: string[]) => void;
+      setIgnoreCertHosts: (hosts: string[]) => Promise<void>;
     };
   }
 }

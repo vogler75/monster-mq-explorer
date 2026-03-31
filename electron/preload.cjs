@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("mqttIpc", {
     ipcRenderer.on("mqtt-tcp-event", handler);
     return () => ipcRenderer.removeListener("mqtt-tcp-event", handler);
   },
-  /** Tell main process which hosts should bypass TLS cert validation */
-  setIgnoreCertHosts: (hosts) => ipcRenderer.send("ignore-cert-hosts", hosts),
+  /** Tell main process which hosts should bypass TLS cert validation.
+   *  Returns a Promise that resolves once the main process has applied the new proc. */
+  setIgnoreCertHosts: (hosts) => ipcRenderer.invoke("ignore-cert-hosts", hosts),
 });

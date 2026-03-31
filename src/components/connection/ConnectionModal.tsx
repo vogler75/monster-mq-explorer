@@ -474,7 +474,7 @@ export default function ConnectionModal() {
 
           <Show when={showTagBrowser()}>
             <TagBrowserModal
-              config={{ host: host(), port: port(), protocol: protocol() as "ws" | "wss", path: path(), username: username(), password: password() }}
+              config={{ host: host(), port: port(), protocol: protocol() as "ws" | "wss", path: path(), username: username(), password: password(), ignoreCertErrors: ignoreCertErrors() }}
               browseFn={connectionType() === "winccoa" ? winccoaBrowse : undefined}
               onAdd={(tags) => {
                 setSubscriptions(subscriptions.length, { topic: "", qos: 0, tags });

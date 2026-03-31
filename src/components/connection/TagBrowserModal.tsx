@@ -23,6 +23,10 @@ export default function TagBrowserModal(props: Props) {
     setLoading(true);
     setError(null);
     try {
+      // Ensure the Electron main process bypasses TLS cert errors for this host
+      if (props.config.ignoreCertErrors && window.mqttIpc?.setIgnoreCertHosts) {
+        await window.mqttIpc.setIgnoreCertHosts([props.config.host]);
+      }
       const browse = props.browseFn ?? loginAndBrowse;
       const result = await browse(props.config, [filter()]);
       setTags(result);

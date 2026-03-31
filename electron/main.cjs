@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, session } = require("electron");
 const path = require("path");
 const mqtt = require("mqtt");
 const pkg = require("../package.json");
@@ -12,21 +12,20 @@ let mainWindow;
 // Hosts for which cert errors should be ignored (populated via IPC from renderer)
 const ignoreCertHosts = new Set();
 
-ipcMain.on("ignore-cert-hosts", (_event, hosts) => {
+function applyCertVerifyProc() {
+  session.defaultSession.setCertificateVerifyProc((request, callback) => {
+    if (ignoreCertHosts.has(request.hostname)) {
+      callback(0); // 0 = OK, bypass verification
+    } else {
+      callback(-3); // -3 = use default Chromium verification
+    }
+  });
+}
+
+ipcMain.handle("ignore-cert-hosts", (_event, hosts) => {
   ignoreCertHosts.clear();
   for (const h of hosts) ignoreCertHosts.add(h);
-});
-
-app.on("certificate-error", (event, _webContents, url, _error, _cert, callback) => {
-  try {
-    const hostname = new URL(url).hostname;
-    if (ignoreCertHosts.has(hostname)) {
-      event.preventDefault();
-      callback(true);
-      return;
-    }
-  } catch {}
-  callback(false);
+  applyCertVerifyProc();
 });
 
 // ---------- TCP MQTT connections managed in main process ----------
@@ -200,7 +199,10 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  applyCertVerifyProc();
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   // Clean up all TCP connections
