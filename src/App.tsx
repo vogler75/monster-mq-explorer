@@ -117,7 +117,7 @@ export default function App() {
           break;
         case "messages": {
           const config = getConnection(connectionId);
-          const msgs = config?.connectionType === "mqtt"
+          const msgs = config
             ? event.batch.map((m) => ({ ...m, topic: `${config.name}/${m.topic}` }))
             : event.batch;
           // Single batch so tree update + expand are applied atomically

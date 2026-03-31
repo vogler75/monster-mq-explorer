@@ -57,7 +57,7 @@ interface WinccOaGroup {
 type HistoryGroup = MonsterMqGroup | WinccUaGroup | WinccOaGroup;
 
 export default function HistoryPane() {
-  const { getArchiveGroups, getLoggingTags, setLoggingTags, getWinccToken, getOriginalTagName, getTopicTagNameMap } = useUI();
+  const { getArchiveGroups, getLoggingTags, setLoggingTags, getWinccToken, getOriginalTagName } = useUI();
   const { connections } = useConnections();
   const { pinnedTopics } = useTabPinnedTopics();
 
@@ -69,22 +69,12 @@ export default function HistoryPane() {
     const claimed = new Set<string>(); // topics already assigned to a connection
     const result: HistoryGroup[] = [];
     for (const conn of connections) {
-      // MQTT connections prefix topics with "connectionName/"
-      // WinCC UA/OA connections use topics as-is (no prefix)
-      const isMqtt = conn.connectionType === "mqtt";
-      const prefix = isMqtt ? conn.name + "/" : "";
-
-      let matching: string[];
-      if (isMqtt) {
-        matching = pinned.filter((t) => t.startsWith(prefix) && !claimed.has(t));
-      } else {
-        // For WinCC UA/OA, only match topics that exist in this connection's tag mapping
-        const tagMap = getTopicTagNameMap(conn.id);
-        matching = pinned.filter((t) => !claimed.has(t) && tagMap.has(t));
-      }
+      // All connections prefix topics with "connectionName/" in the tree
+      const prefix = conn.name + "/";
+      const matching = pinned.filter((t) => t.startsWith(prefix) && !claimed.has(t));
       if (matching.length === 0) continue;
 
-      const topics = isMqtt ? matching.map((t) => t.slice(prefix.length)) : matching;
+      const topics = matching.map((t) => t.slice(prefix.length));
 
       if (conn.isMonsterMq && conn.monsterMqGraphqlUrl) {
         for (const t of matching) claimed.add(t);
