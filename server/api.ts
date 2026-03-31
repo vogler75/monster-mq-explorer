@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import https from "node:https";
+import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 const DATA_DIR = path.resolve(process.cwd(), "data");
@@ -24,6 +26,31 @@ function readConnections(): unknown[] {
 function writeConnections(data: unknown[]) {
   ensureDataDir();
   fs.writeFileSync(CONNECTIONS_FILE, JSON.stringify(data, null, 2));
+}
+
+function proxyFetch(target: string, headers: Record<string, string>, body: string, ignoreCert: boolean): Promise<{ status: number; text: string }> {
+  if (!ignoreCert) {
+    return fetch(target, { method: "POST", headers, body })
+      .then(async (r) => ({ status: r.status, text: await r.text() }));
+  }
+  return new Promise((resolve, reject) => {
+    const u = new URL(target);
+    const isHttps = u.protocol === "https:";
+    const bodyBuf = Buffer.from(body);
+    const options = {
+      hostname: u.hostname,
+      port: u.port || (isHttps ? "443" : "80"),
+      path: u.pathname + (u.search || ""),
+      method: "POST" as const,
+      headers: { ...headers, "Content-Length": String(bodyBuf.length) },
+      rejectUnauthorized: false,
+    };
+    (isHttps ? https : http).request(options, (r) => {
+      const chunks: Buffer[] = [];
+      r.on("data", (c: Buffer) => chunks.push(c));
+      r.on("end", () => resolve({ status: r.statusCode ?? 200, text: Buffer.concat(chunks).toString() }));
+    }).on("error", reject).end(bodyBuf);
+  });
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -83,11 +110,12 @@ export async function handleApiRequest(
     const forwardHeaders: Record<string, string> = { "Content-Type": "application/json" };
     const auth = req.headers["authorization"];
     if (auth) forwardHeaders["Authorization"] = typeof auth === "string" ? auth : auth[0];
+    const ignoreCert = req.headers["x-ignore-cert-errors"] === "1";
     try {
-      const proxyRes = await fetch(target, { method: "POST", headers: forwardHeaders, body });
-      res.statusCode = proxyRes.status;
+      const { status, text } = await proxyFetch(target, forwardHeaders, body, ignoreCert);
+      res.statusCode = status;
       res.setHeader("Content-Type", "application/json");
-      res.end(await proxyRes.text());
+      res.end(text);
     } catch (err) {
       res.statusCode = 502;
       res.end(JSON.stringify({ error: `Proxy error: ${err}` }));

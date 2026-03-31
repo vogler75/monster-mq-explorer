@@ -7,15 +7,17 @@ export interface BrowseConfig {
   path: string;
   username: string;
   password: string;
+  ignoreCertErrors?: boolean;
 }
 
-async function graphqlPost(url: string, body: object, token?: string): Promise<unknown> {
+async function graphqlPost(url: string, body: object, token?: string, ignoreCertErrors?: boolean): Promise<unknown> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   let fetchUrl = url;
   if (typeof __ELECTRON__ === "undefined" || !__ELECTRON__) {
     headers["X-Wincc-Target"] = url;
+    if (ignoreCertErrors) headers["X-Ignore-Cert-Errors"] = "1";
     fetchUrl = "/api/winccua-proxy";
   }
 
@@ -35,7 +37,7 @@ export async function login(config: BrowseConfig): Promise<string | undefined> {
   const result = await graphqlPost(url, {
     query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
     variables: { username: config.username, password: config.password },
-  }) as { data?: { login?: { token?: string } }; errors?: unknown[] };
+  }, undefined, config.ignoreCertErrors) as { data?: { login?: { token?: string } }; errors?: unknown[] };
   if (result.errors) throw new Error(`Login failed: ${JSON.stringify(result.errors)}`);
   const token = result.data?.login?.token;
   if (!token) throw new Error("Login succeeded but returned no token");
@@ -47,7 +49,7 @@ export async function browseLoggingTags(config: BrowseConfig, tagName: string, t
   const result = await graphqlPost(url, {
     query: `query Browse($nameFilters: [String], $objectTypeFilters: [ObjectTypesEnum]) { browse(nameFilters: $nameFilters, objectTypeFilters: $objectTypeFilters) { name } }`,
     variables: { nameFilters: [`${tagName}:*`], objectTypeFilters: ["LOGGINGTAG"] },
-  }, token) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
+  }, token, config.ignoreCertErrors) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
   if (result.errors) throw new Error(`Browse failed: ${JSON.stringify(result.errors)}`);
   return result.data?.browse?.map((r) => r.name) ?? [];
 }
@@ -79,7 +81,7 @@ export async function queryLoggedTagValues(
       }
     }`,
     variables: { names, startTime, endTime, maxNumberOfValues },
-  }, token) as { data?: { loggedTagValues?: any[] }; errors?: unknown[] };
+  }, token, config.ignoreCertErrors) as { data?: { loggedTagValues?: any[] }; errors?: unknown[] };
   if (result.errors) throw new Error(`Query failed: ${JSON.stringify(result.errors)}`);
 
   const rows: WinccUaLoggedValue[] = [];
@@ -105,7 +107,7 @@ export async function loginAndBrowse(config: BrowseConfig, nameFilters: string[]
     const result = await graphqlPost(url, {
       query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
       variables: { username: config.username, password: config.password },
-    }) as { data?: { login?: { token?: string } }; errors?: unknown[] };
+    }, undefined, config.ignoreCertErrors) as { data?: { login?: { token?: string } }; errors?: unknown[] };
     if (result.errors) throw new Error(`Login failed: ${JSON.stringify(result.errors)}`);
     token = result.data?.login?.token;
     if (!token) throw new Error("Login succeeded but returned no token");
@@ -114,7 +116,7 @@ export async function loginAndBrowse(config: BrowseConfig, nameFilters: string[]
   const result = await graphqlPost(url, {
     query: `query Browse($nameFilters: [String], $objectTypeFilters: [ObjectTypesEnum]) { browse(nameFilters: $nameFilters, objectTypeFilters: $objectTypeFilters) { name } }`,
     variables: { nameFilters, objectTypeFilters: ["TAG"] },
-  }, token) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
+  }, token, config.ignoreCertErrors) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
 
   if (result.errors) throw new Error(`Browse failed: ${JSON.stringify(result.errors)}`);
   return result.data?.browse?.map((r) => r.name) ?? [];

@@ -96,13 +96,14 @@ function sendDpQueryConnect(socket: WebSocket, query: string): string {
   return id;
 }
 
-async function graphqlPost(url: string, body: object, token?: string): Promise<unknown> {
+async function graphqlPost(url: string, body: object, token?: string, ignoreCertErrors?: boolean): Promise<unknown> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   let fetchUrl = url;
   if (typeof __ELECTRON__ === "undefined" || !__ELECTRON__) {
     headers["X-Wincc-Target"] = url;
+    if (ignoreCertErrors) headers["X-Ignore-Cert-Errors"] = "1";
     fetchUrl = "/api/winccua-proxy";
   }
 
@@ -125,7 +126,7 @@ async function connectToWinCCOA(config: ConnectionConfig) {
     console.log("[WinCC OA] Login request →", http, loginBody);
     let result: { data?: { login?: { token?: string } }; errors?: unknown[] };
     try {
-      result = await graphqlPost(http, loginBody) as typeof result;
+      result = await graphqlPost(http, loginBody, undefined, config.ignoreCertErrors) as typeof result;
       console.log("[WinCC OA] Login response ←", JSON.stringify(result));
     } catch (err) {
       console.error("[WinCC OA] Login request failed:", err);

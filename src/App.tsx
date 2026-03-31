@@ -173,7 +173,7 @@ export default function App() {
     }
 
     if (config.connectionType === "winccua") {
-      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol as "ws" | "wss", path: config.path, username: config.username, password: config.password };
+      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol as "ws" | "wss", path: config.path, username: config.username, password: config.password, ignoreCertErrors: config.ignoreCertErrors };
       // Login and build topic→tagName mapping for history queries
       const splitters = [...new Set(["::"].concat([...config.tagPathSplit]))];
       function tagNameToTopic(name: string): string {
@@ -211,7 +211,7 @@ export default function App() {
     }
 
     if (config.connectionType === "winccoa") {
-      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol as "ws" | "wss", path: config.path, username: config.username, password: config.password };
+      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol as "ws" | "wss", path: config.path, username: config.username, password: config.password, ignoreCertErrors: config.ignoreCertErrors };
       const splitters = [...new Set([":"].concat([...config.tagPathSplit]))];
       function oaTagNameToTopic(name: string): string {
         let result = name;

@@ -100,6 +100,7 @@ export default function HistoryPane() {
             path: conn.path,
             username: conn.username,
             password: conn.password,
+            ignoreCertErrors: conn.ignoreCertErrors,
           },
           tagPathSplit: conn.tagPathSplit,
           topics,
@@ -117,6 +118,7 @@ export default function HistoryPane() {
             path: conn.path,
             username: conn.username,
             password: conn.password,
+            ignoreCertErrors: conn.ignoreCertErrors,
           },
           topics,
         });

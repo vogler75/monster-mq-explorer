@@ -7,15 +7,17 @@ export interface BrowseConfig {
   path: string;
   username: string;
   password: string;
+  ignoreCertErrors?: boolean;
 }
 
-async function graphqlPost(url: string, body: object, token?: string): Promise<unknown> {
+async function graphqlPost(url: string, body: object, token?: string, ignoreCertErrors?: boolean): Promise<unknown> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   let fetchUrl = url;
   if (typeof __ELECTRON__ === "undefined" || !__ELECTRON__) {
     headers["X-Wincc-Target"] = url;
+    if (ignoreCertErrors) headers["X-Ignore-Cert-Errors"] = "1";
     fetchUrl = "/api/winccua-proxy";
   }
 
@@ -35,7 +37,7 @@ export async function login(config: BrowseConfig): Promise<string | undefined> {
   const result = await graphqlPost(url, {
     query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
     variables: { username: config.username, password: config.password },
-  }) as { data?: { login?: { token?: string } }; errors?: unknown[] };
+  }, undefined, config.ignoreCertErrors) as { data?: { login?: { token?: string } }; errors?: unknown[] };
   if (result.errors) throw new Error(`Login failed: ${JSON.stringify(result.errors)}`);
   const token = result.data?.login?.token;
   if (!token) throw new Error("Login succeeded but returned no token");
@@ -69,7 +71,7 @@ export async function queryDpGetPeriod(
       api { dp { getPeriod(startTime: $startTime, endTime: $endTime, dpeNames: $dpeNames) } }
     }`,
     variables: { startTime, endTime, dpeNames: queryDpes },
-  }, token) as { data?: { api?: { dp?: { getPeriod?: unknown } } }; errors?: unknown[] };
+  }, token, config.ignoreCertErrors) as { data?: { api?: { dp?: { getPeriod?: unknown } } }; errors?: unknown[] };
   console.log("[WinCC OA] getPeriod request:", { dpeNames: queryDpes, startTime, endTime });
   console.log("[WinCC OA] getPeriod response:", JSON.stringify(result, null, 2));
   if (result.errors) throw new Error(`Query failed: ${JSON.stringify(result.errors)}`);
@@ -104,7 +106,7 @@ export async function loginAndBrowse(config: BrowseConfig, nameFilters: string[]
     const result = await graphqlPost(url, {
       query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
       variables: { username: config.username, password: config.password },
-    }) as { data?: { login?: { token?: string } }; errors?: unknown[] };
+    }, undefined, config.ignoreCertErrors) as { data?: { login?: { token?: string } }; errors?: unknown[] };
     if (result.errors) throw new Error(`Login failed: ${JSON.stringify(result.errors)}`);
     token = result.data?.login?.token;
     if (!token) throw new Error("Login succeeded but returned no token");
@@ -115,7 +117,7 @@ export async function loginAndBrowse(config: BrowseConfig, nameFilters: string[]
     const result = await graphqlPost(url, {
       query: `query Names($pattern: String) { api { dp { names(dpPattern: $pattern) } } }`,
       variables: { pattern },
-    }, token) as { data?: { api?: { dp?: { names?: string[] } } }; errors?: unknown[] };
+    }, token, config.ignoreCertErrors) as { data?: { api?: { dp?: { names?: string[] } } }; errors?: unknown[] };
 
     if (result.errors) throw new Error(`Browse failed: ${JSON.stringify(result.errors)}`);
     const names = result.data?.api?.dp?.names ?? [];

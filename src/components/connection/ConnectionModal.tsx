@@ -126,6 +126,10 @@ export default function ConnectionModal() {
     { value: "ws", label: "ws (websocket)" },
     { value: "wss", label: "wss (websocket+tls)" },
   ];
+  const winccProtocolOptions = [
+    { value: "ws", label: "http (ws)" },
+    { value: "wss", label: "https (wss)" },
+  ];
 
   const inputBase =
     "px-2 py-1.5 text-sm bg-slate-800 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500";
@@ -223,26 +227,33 @@ export default function ConnectionModal() {
                 value={protocol()}
                 onChange={(e) => {
                   const p = e.currentTarget.value as ConnectionConfig["protocol"];
-                  const prev = protocol();
                   setProtocol(p);
-                  // Auto-adjust port when switching protocol families
                   const currentPort = port();
-                  if (p === "mqtt" && (currentPort === 8884 || currentPort === 8083 || currentPort === 443))
-                    setPort(1883);
-                  else if (p === "mqtts" && (currentPort === 8083 || currentPort === 1883 || currentPort === 443))
-                    setPort(8883);
-                  else if (p === "wss" && (currentPort === 1883 || currentPort === 8883))
-                    setPort(8884);
-                  else if (p === "ws" && (currentPort === 1883 || currentPort === 8883 || currentPort === 8884))
-                    setPort(8083);
-                  // Auto-set path for WS, clear for TCP
-                  if ((p === "mqtt" || p === "mqtts") && path() === "/mqtt")
-                    setPath("");
-                  else if ((p === "ws" || p === "wss") && path() === "")
-                    setPath("/mqtt");
+                  if (connectionType() === "mqtt") {
+                    // Auto-adjust port when switching MQTT protocol families
+                    if (p === "mqtt" && (currentPort === 8884 || currentPort === 8083 || currentPort === 443))
+                      setPort(1883);
+                    else if (p === "mqtts" && (currentPort === 8083 || currentPort === 1883 || currentPort === 443))
+                      setPort(8883);
+                    else if (p === "wss" && (currentPort === 1883 || currentPort === 8883))
+                      setPort(8884);
+                    else if (p === "ws" && (currentPort === 1883 || currentPort === 8883 || currentPort === 8884))
+                      setPort(8083);
+                    // Auto-set path for WS, clear for TCP
+                    if ((p === "mqtt" || p === "mqtts") && path() === "/mqtt")
+                      setPath("");
+                    else if ((p === "ws" || p === "wss") && path() === "")
+                      setPath("/mqtt");
+                  } else {
+                    // WinCC: auto-adjust between http (80) and https (443)
+                    if (p === "ws" && (currentPort === 443))
+                      setPort(80);
+                    else if (p === "wss" && (currentPort === 80))
+                      setPort(443);
+                  }
                 }}
               >
-                <For each={protocolOptions}>
+                <For each={connectionType() === "mqtt" ? protocolOptions : winccProtocolOptions}>
                   {(opt) => <option value={opt.value}>{opt.label}</option>}
                 </For>
               </select>
