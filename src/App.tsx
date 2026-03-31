@@ -223,6 +223,9 @@ export default function App() {
         .filter((s) => !s.tags || s.tags.length === 0)
         .map((s) => s.topic.trim())
         .filter((t) => t.length > 0);
+      const explicitTags = config.subscriptions
+        .filter((s) => s.tags && s.tags.length > 0)
+        .flatMap((s) => s.tags!);
 
       (async () => {
         try {
@@ -233,8 +236,9 @@ export default function App() {
           if (nameFilters.length > 0) {
             browsedTags = await winccOaBrowse(browseConfig, nameFilters);
           }
+          const allTags = [...explicitTags, ...browsedTags];
           const mapping = new Map<string, string>();
-          for (const tag of browsedTags) {
+          for (const tag of allTags) {
             mapping.set(oaTagNameToTopic(tag), tag);
           }
           setTopicTagNameMap(connectionId, mapping);
