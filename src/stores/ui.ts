@@ -6,6 +6,7 @@ type UnsubscribeFn = (topic: string) => void;
 let publishFn: PublishFn | null = null;
 let subscribeFn: SubscribeFn | null = null;
 let unsubscribeFn: UnsubscribeFn | null = null;
+let deleteConnectionFn: ((id: string) => void) | null = null;
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
@@ -84,6 +85,17 @@ export function useUI() {
         return next;
       });
     },
+
+    clearConnectionState(id: string) {
+      setConnectionStatuses_((prev) => { const next = new Map(prev); next.delete(id); return next; });
+      setArchiveGroupsMap((prev) => { const next = new Map(prev); next.delete(id); return next; });
+      setWinccTokens((prev) => { const next = new Map(prev); next.delete(id); return next; });
+      setTopicTagNameMap((prev) => { const next = new Map(prev); next.delete(id); return next; });
+      setLoggingTagsMap((prev) => { const next = new Map(prev); next.delete(id); return next; });
+    },
+
+    setDeleteConnectionFn(fn: (id: string) => void) { deleteConnectionFn = fn; },
+    deleteConnection(id: string) { deleteConnectionFn?.(id); },
 
     setPublishFn(fn: PublishFn) { publishFn = fn; },
     publish(topic: string, payload: string, qos: 0 | 1 | 2, retain: boolean) {

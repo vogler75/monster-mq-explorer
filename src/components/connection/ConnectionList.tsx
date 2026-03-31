@@ -3,9 +3,9 @@ import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
 
 export default function ConnectionList() {
-  const { connections, activeConnectionId, setActiveConnectionId, removeConnection } =
+  const { connections, activeConnectionId, setActiveConnectionId } =
     useConnections();
-  const { getConnectionStatus, setShowConnectionModal, setEditingConnectionId } =
+  const { getConnectionStatus, setShowConnectionModal, setEditingConnectionId, deleteConnection } =
     useUI();
 
   return (
@@ -66,7 +66,7 @@ export default function ConnectionList() {
                   class="p-0.5 text-slate-500 hover:text-red-400"
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeConnection(conn.id);
+                    deleteConnection(conn.id);
                   }}
                   title="Delete"
                 >

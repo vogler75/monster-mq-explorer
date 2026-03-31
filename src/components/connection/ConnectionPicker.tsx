@@ -13,14 +13,13 @@ export default function ConnectionPicker(props: Props) {
     connections,
     activeConnectionId,
     setActiveConnectionId,
-    removeConnection,
     moveConnection,
     importConnections,
     exportConnections,
     connectionImportError,
     clearConnectionImportError,
   } = useConnections();
-  const { getConnectionStatus, setShowConnectionModal, setEditingConnectionId } = useUI();
+  const { getConnectionStatus, setShowConnectionModal, setEditingConnectionId, deleteConnection } = useUI();
   const [busy, setBusy] = createSignal(false);
   const [dragIndex, setDragIndex] = createSignal<number | null>(null);
   const [dropIndex, setDropIndex] = createSignal<number | null>(null);
@@ -155,7 +154,7 @@ export default function ConnectionPicker(props: Props) {
                   class="p-0.5 text-slate-500 hover:text-red-400"
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeConnection(conn.id);
+                    deleteConnection(conn.id);
                   }}
                   title="Delete"
                 >
