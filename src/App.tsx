@@ -9,6 +9,7 @@ import { broadcastMessages, broadcastChartMessage } from "./stores/tabStore";
 import { fetchArchiveGroups } from "./lib/monstermq-api";
 import { login as winccUaLogin, loginAndBrowse as winccUaBrowse } from "./lib/winccua-api";
 import { login as winccOaLogin, loginAndBrowse as winccOaBrowse } from "./lib/winccoa-api";
+import { createIpcAdapter, hasMqttIpc, type WorkerLike } from "./lib/mqtt-ipc";
 import Toolbar from "./components/layout/Toolbar";
 import Sidebar from "./components/layout/Sidebar";
 import DetailPane from "./components/layout/DetailPane";
@@ -16,13 +17,32 @@ import PublishPane from "./components/detail/PublishPane";
 import ConnectionModal from "./components/connection/ConnectionModal";
 import SubscriptionModal from "./components/connection/SubscriptionPanel";
 
-// One worker per connection, keyed by connectionId
-const workers = new Map<string, Worker>();
+// One worker (or IPC adapter) per connection, keyed by connectionId
+const workers = new Map<string, Worker | WorkerLike>();
+// Track whether each connection uses IPC so we can detect protocol switches
+const workerIsIpc = new Map<string, boolean>();
 
-function getOrCreateWorker(connectionId: string, type: "mqtt" | "winccua" | "winccoa"): Worker {
+function isTcpProtocol(protocol: string): boolean {
+  return protocol === "mqtt" || protocol === "mqtts";
+}
+
+function getOrCreateWorker(connectionId: string, type: "mqtt" | "winccua" | "winccoa", protocol?: string): Worker | WorkerLike {
+  const needsIpc = !!(protocol && isTcpProtocol(protocol) && hasMqttIpc());
   let w = workers.get(connectionId);
+
+  // If the worker type changed (e.g. switched from ws to tcp or vice versa), tear down the old one
+  if (w && workerIsIpc.get(connectionId) !== needsIpc) {
+    w.postMessage({ type: "disconnect" });
+    w.terminate();
+    workers.delete(connectionId);
+    workerIsIpc.delete(connectionId);
+    w = undefined;
+  }
+
   if (!w) {
-    if (type === "winccua") {
+    if (needsIpc) {
+      w = createIpcAdapter(connectionId);
+    } else if (type === "winccua") {
       w = new Worker(new URL("./workers/winccua.worker.ts", import.meta.url), { type: "module" });
     } else if (type === "winccoa") {
       w = new Worker(new URL("./workers/winccoa.worker.ts", import.meta.url), { type: "module" });
@@ -30,6 +50,7 @@ function getOrCreateWorker(connectionId: string, type: "mqtt" | "winccua" | "win
       w = new Worker(new URL("./workers/mqtt.worker.ts", import.meta.url), { type: "module" });
     }
     workers.set(connectionId, w);
+    workerIsIpc.set(connectionId, needsIpc);
   }
   return w;
 }
@@ -81,7 +102,7 @@ export default function App() {
     document.body.style.userSelect = "none";
   }
 
-  function setupWorkerListeners(w: Worker, connectionId: string) {
+  function setupWorkerListeners(w: Worker | WorkerLike, connectionId: string) {
     w.onmessage = (e: MessageEvent<WorkerEvent>) => {
       const event = e.data;
       switch (event.type) {
@@ -120,15 +141,25 @@ export default function App() {
     };
   }
 
-  function activeWorker(): Worker | null {
+  function activeWorker(): Worker | WorkerLike | null {
     const id = activeConnectionId();
     return id ? workers.get(id) ?? null : null;
+  }
+
+  /** Sync the set of TLS-cert-bypass hosts to the Electron main process */
+  function syncIgnoreCertHosts() {
+    if (!window.mqttIpc?.setIgnoreCertHosts) return;
+    const hosts = connections
+      .filter((c) => c.ignoreCertErrors && (c.protocol === "wss" || c.protocol === "mqtts"))
+      .map((c) => c.host);
+    window.mqttIpc.setIgnoreCertHosts(hosts);
   }
 
   function connect(connectionId: string) {
     const config = getConnection(connectionId);
     if (!config) return;
-    const w = getOrCreateWorker(connectionId, config.connectionType);
+    syncIgnoreCertHosts();
+    const w = getOrCreateWorker(connectionId, config.connectionType, config.protocol);
     setupWorkerListeners(w, connectionId);
     setConnectionStatus(connectionId, "connecting");
     setActiveConnectionId(connectionId);
@@ -142,7 +173,7 @@ export default function App() {
     }
 
     if (config.connectionType === "winccua") {
-      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol, path: config.path, username: config.username, password: config.password };
+      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol as "ws" | "wss", path: config.path, username: config.username, password: config.password };
       // Login and build topic→tagName mapping for history queries
       const splitters = [...new Set(["::"].concat([...config.tagPathSplit]))];
       function tagNameToTopic(name: string): string {
@@ -180,7 +211,7 @@ export default function App() {
     }
 
     if (config.connectionType === "winccoa") {
-      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol, path: config.path, username: config.username, password: config.password };
+      const browseConfig = { host: config.host, port: config.port, protocol: config.protocol as "ws" | "wss", path: config.path, username: config.username, password: config.password };
       const splitters = [...new Set([":"].concat([...config.tagPathSplit]))];
       function oaTagNameToTopic(name: string): string {
         let result = name;
@@ -244,6 +275,7 @@ export default function App() {
   onCleanup(() => {
     for (const w of workers.values()) w.terminate();
     workers.clear();
+    workerIsIpc.clear();
   });
 
   return (

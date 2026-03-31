@@ -1,3 +1,4 @@
+declare const __ELECTRON__: boolean | undefined;
 import { createSignal, For, Show, Index } from "solid-js";
 import { createStore } from "solid-js/store";
 import { useConnections } from "../../stores/connections";
@@ -32,6 +33,7 @@ export default function ConnectionModal() {
   const [filterInternalTags, setFilterInternalTags] = createSignal(defaults().filterInternalTags ?? false);
   const [isMonsterMq, setIsMonsterMq] = createSignal(defaults().isMonsterMq ?? false);
   const [monsterMqGraphqlUrl, setMonsterMqGraphqlUrl] = createSignal(defaults().monsterMqGraphqlUrl ?? "");
+  const [ignoreCertErrors, setIgnoreCertErrors] = createSignal(defaults().ignoreCertErrors ?? false);
   const [showTagBrowser, setShowTagBrowser] = createSignal(false);
   const [expandedSubIndex, setExpandedSubIndex] = createSignal<number | null>(null);
   const [subscriptions, setSubscriptions] = createStore<Subscription[]>([
@@ -98,6 +100,7 @@ export default function ConnectionModal() {
       filterInternalTags: filterInternalTags(),
       isMonsterMq: isMonsterMq(),
       monsterMqGraphqlUrl: monsterMqGraphqlUrl(),
+      ignoreCertErrors: ignoreCertErrors(),
       subscriptions: subscriptions.filter((s) => s.topic.trim() !== "" || (s.tags && s.tags.length > 0)),
     };
 
@@ -112,6 +115,16 @@ export default function ConnectionModal() {
   function handleClose() {
     setShowConnectionModal(false);
   }
+
+  const isElectronApp = typeof __ELECTRON__ !== "undefined" && __ELECTRON__;
+  const protocolOptions = [
+    ...(isElectronApp ? [
+      { value: "mqtt", label: "mqtt (tcp)" },
+      { value: "mqtts", label: "mqtts (tcp+tls)" },
+    ] : []),
+    { value: "ws", label: "ws (websocket)" },
+    { value: "wss", label: "wss (websocket+tls)" },
+  ];
 
   const inputBase =
     "px-2 py-1.5 text-sm bg-slate-800 border border-slate-600 rounded text-slate-200 outline-none focus:border-blue-500";
@@ -184,7 +197,7 @@ export default function ConnectionModal() {
           </div>
 
           {/* Host + Port + Protocol */}
-          <div class="grid grid-cols-[1fr_80px_80px] gap-2">
+          <div class="grid grid-cols-[1fr_80px_auto] gap-2">
             <div>
               <label class={labelClass}>Host</label>
               <input
@@ -207,27 +220,60 @@ export default function ConnectionModal() {
               <select
                 class={inputClass}
                 value={protocol()}
-                onChange={(e) =>
-                  setProtocol(e.currentTarget.value as "ws" | "wss")
-                }
+                onChange={(e) => {
+                  const p = e.currentTarget.value as ConnectionConfig["protocol"];
+                  const prev = protocol();
+                  setProtocol(p);
+                  // Auto-adjust port when switching protocol families
+                  const currentPort = port();
+                  if (p === "mqtt" && (currentPort === 8884 || currentPort === 8083 || currentPort === 443))
+                    setPort(1883);
+                  else if (p === "mqtts" && (currentPort === 8083 || currentPort === 1883 || currentPort === 443))
+                    setPort(8883);
+                  else if (p === "wss" && (currentPort === 1883 || currentPort === 8883))
+                    setPort(8884);
+                  else if (p === "ws" && (currentPort === 1883 || currentPort === 8883 || currentPort === 8884))
+                    setPort(8083);
+                  // Auto-set path for WS, clear for TCP
+                  if ((p === "mqtt" || p === "mqtts") && path() === "/mqtt")
+                    setPath("");
+                  else if ((p === "ws" || p === "wss") && path() === "")
+                    setPath("/mqtt");
+                }}
               >
-                <option value="wss">wss</option>
-                <option value="ws">ws</option>
+                <For each={protocolOptions}>
+                  {(opt) => <option value={opt.value}>{opt.label}</option>}
+                </For>
               </select>
             </div>
           </div>
 
-          {/* Path */}
-          <div>
-            <label class={labelClass}>
-              {connectionType() !== "mqtt" ? "GraphQL Path" : "WebSocket Path"}
+          {/* Ignore cert errors — TLS protocols only */}
+          <Show when={protocol() === "wss" || protocol() === "mqtts"}>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                class="accent-blue-500"
+                checked={ignoreCertErrors()}
+                onChange={(e) => setIgnoreCertErrors(e.currentTarget.checked)}
+              />
+              <span class="text-xs text-slate-400">Ignore certificate errors (self-signed, expired, etc.)</span>
             </label>
-            <input
-              class={inputClass}
-              value={path()}
-              onInput={(e) => setPath(e.currentTarget.value)}
-            />
-          </div>
+          </Show>
+
+          {/* Path — not needed for raw TCP/TLS */}
+          <Show when={protocol() !== "mqtt" && protocol() !== "mqtts"}>
+            <div>
+              <label class={labelClass}>
+                {connectionType() !== "mqtt" ? "GraphQL Path" : "WebSocket Path"}
+              </label>
+              <input
+                class={inputClass}
+                value={path()}
+                onInput={(e) => setPath(e.currentTarget.value)}
+              />
+            </div>
+          </Show>
 
           {/* Username + Password */}
           <div class="grid grid-cols-2 gap-2">
@@ -416,7 +462,7 @@ export default function ConnectionModal() {
 
           <Show when={showTagBrowser()}>
             <TagBrowserModal
-              config={{ host: host(), port: port(), protocol: protocol(), path: path(), username: username(), password: password() }}
+              config={{ host: host(), port: port(), protocol: protocol() as "ws" | "wss", path: path(), username: username(), password: password() }}
               browseFn={connectionType() === "winccoa" ? winccoaBrowse : undefined}
               onAdd={(tags) => {
                 setSubscriptions(subscriptions.length, { topic: "", qos: 0, tags });

@@ -4,7 +4,7 @@ export interface ConnectionConfig {
   connectionType: "mqtt" | "winccua" | "winccoa";
   host: string;
   port: number;
-  protocol: "ws" | "wss";
+  protocol: "ws" | "wss" | "mqtt" | "mqtts";
   path: string;
   username: string;
   password: string;
@@ -20,6 +20,8 @@ export interface ConnectionConfig {
   isMonsterMq: boolean;
   /** GraphQL endpoint URL for MonsterMQ API (e.g. "https://broker:4000/graphql") */
   monsterMqGraphqlUrl: string;
+  /** Accept invalid/self-signed TLS certificates (wss, mqtts) */
+  ignoreCertErrors: boolean;
 }
 
 export interface Subscription {
@@ -78,6 +80,7 @@ export function createDefaultConnection(): ConnectionConfig {
     filterInternalTags: false,
     isMonsterMq: false,
     monsterMqGraphqlUrl: "",
+    ignoreCertErrors: false,
   };
 }
 
@@ -98,6 +101,7 @@ export function createDefaultWinCCOAConnection(): ConnectionConfig {
     filterInternalTags: false,
     isMonsterMq: false,
     monsterMqGraphqlUrl: "",
+    ignoreCertErrors: false,
   };
 }
 
@@ -118,5 +122,6 @@ export function createDefaultWinCCUAConnection(): ConnectionConfig {
     filterInternalTags: true,
     isMonsterMq: false,
     monsterMqGraphqlUrl: "",
+    ignoreCertErrors: false,
   };
 }

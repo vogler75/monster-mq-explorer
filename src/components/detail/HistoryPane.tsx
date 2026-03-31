@@ -105,7 +105,7 @@ export default function HistoryPane() {
           browseConfig: {
             host: conn.host,
             port: conn.port,
-            protocol: conn.protocol,
+            protocol: conn.protocol as "ws" | "wss",
             path: conn.path,
             username: conn.username,
             password: conn.password,
@@ -122,7 +122,7 @@ export default function HistoryPane() {
           browseConfig: {
             host: conn.host,
             port: conn.port,
-            protocol: conn.protocol,
+            protocol: conn.protocol as "ws" | "wss",
             path: conn.path,
             username: conn.username,
             password: conn.password,

@@ -194,7 +194,7 @@ export default function SubscriptionModal() {
           config={{
             host: activeConn()!.host,
             port: activeConn()!.port,
-            protocol: activeConn()!.protocol,
+            protocol: activeConn()!.protocol as "ws" | "wss",
             path: activeConn()!.path,
             username: activeConn()!.username,
             password: activeConn()!.password,

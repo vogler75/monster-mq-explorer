@@ -142,6 +142,15 @@ export function useConnections() {
       return exportConnectionsToJson([...connections]);
     },
 
+    moveConnection(fromIndex: number, toIndex: number) {
+      if (fromIndex === toIndex) return;
+      const next = [...connections];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      setConnections(next);
+      void persistConnections(next);
+    },
+
     clearConnectionImportError() {
       setConnectionImportError(null);
     },

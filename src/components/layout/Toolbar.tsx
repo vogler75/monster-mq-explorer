@@ -48,7 +48,7 @@ export default function Toolbar(props: Props) {
         </button>
 
         <Show when={pickerOpen()}>
-          <ConnectionPicker onClose={() => setPickerOpen(false)} onConnect={props.onConnect} />
+          <ConnectionPicker onClose={() => setPickerOpen(false)} onConnect={props.onConnect} onDisconnect={props.onDisconnect} />
         </Show>
       </div>
 

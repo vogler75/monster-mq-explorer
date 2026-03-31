@@ -5,6 +5,7 @@ import { useUI } from "../../stores/ui";
 interface Props {
   onClose: () => void;
   onConnect: (id: string) => void;
+  onDisconnect: () => void;
 }
 
 export default function ConnectionPicker(props: Props) {
@@ -13,6 +14,7 @@ export default function ConnectionPicker(props: Props) {
     activeConnectionId,
     setActiveConnectionId,
     removeConnection,
+    moveConnection,
     importConnections,
     exportConnections,
     connectionImportError,
@@ -20,6 +22,8 @@ export default function ConnectionPicker(props: Props) {
   } = useConnections();
   const { getConnectionStatus, setShowConnectionModal, setEditingConnectionId } = useUI();
   const [busy, setBusy] = createSignal(false);
+  const [dragIndex, setDragIndex] = createSignal<number | null>(null);
+  const [dropIndex, setDropIndex] = createSignal<number | null>(null);
 
   async function handleImport(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
@@ -69,28 +73,57 @@ export default function ConnectionPicker(props: Props) {
       data-connection-picker
       class="absolute top-full left-0 mt-1 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden"
     >
-      <div class="max-h-60 overflow-auto">
+      <div class="max-h-96 overflow-auto">
         <For
           each={connections}
           fallback={
             <div class="px-3 py-2 text-xs text-slate-500">No connections yet</div>
           }
         >
-          {(conn) => (
+          {(conn, index) => (
             <div
+              draggable={true}
+              onDragStart={(e) => {
+                setDragIndex(index());
+                e.dataTransfer!.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer!.dropEffect = "move";
+                setDropIndex(index());
+              }}
+              onDragLeave={() => {
+                if (dropIndex() === index()) setDropIndex(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const from = dragIndex();
+                if (from !== null) moveConnection(from, index());
+                setDragIndex(null);
+                setDropIndex(null);
+              }}
+              onDragEnd={() => {
+                setDragIndex(null);
+                setDropIndex(null);
+              }}
               class="group flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-slate-700/50 transition-colors"
               classList={{
                 "bg-slate-700/70 text-slate-100": activeConnectionId() === conn.id,
                 "text-slate-400": activeConnectionId() !== conn.id,
+                "opacity-40": dragIndex() === index(),
+                "border-b border-blue-500": dropIndex() === index() && dragIndex() !== null && dragIndex()! < index(),
+                "border-t border-blue-500": dropIndex() === index() && dragIndex() !== null && dragIndex()! > index(),
               }}
               onClick={() => {
                 setActiveConnectionId(conn.id);
-                props.onClose();
-                if (getConnectionStatus(conn.id) === "disconnected") {
-                  props.onConnect(conn.id);
-                }
               }}
             >
+              {/* Drag handle */}
+              <svg class="w-3 h-3 shrink-0 text-slate-600 cursor-grab active:cursor-grabbing" viewBox="0 0 12 12" fill="currentColor">
+                <circle cx="4" cy="3" r="1" /><circle cx="8" cy="3" r="1" />
+                <circle cx="4" cy="6" r="1" /><circle cx="8" cy="6" r="1" />
+                <circle cx="4" cy="9" r="1" /><circle cx="8" cy="9" r="1" />
+              </svg>
               <div
                 class="w-1.5 h-1.5 rounded-full shrink-0"
                 classList={{
@@ -130,6 +163,41 @@ export default function ConnectionPicker(props: Props) {
                     <path d="M3 3l6 6M9 3l-6 6" />
                   </svg>
                 </button>
+                {/* Connect / Disconnect — rightmost */}
+                <Show when={getConnectionStatus(conn.id) === "disconnected"}>
+                  <button
+                    class="p-0.5 text-green-500 hover:text-green-400"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveConnectionId(conn.id);
+                      props.onConnect(conn.id);
+                      props.onClose();
+                    }}
+                    title="Connect"
+                  >
+                    {/* Plug / power-on icon */}
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M5 2v4M11 2v4M4 6h8v3a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6zM8 13v2" />
+                    </svg>
+                  </button>
+                </Show>
+                <Show when={getConnectionStatus(conn.id) === "connected" || getConnectionStatus(conn.id) === "connecting"}>
+                  <button
+                    class="p-0.5 text-red-500 hover:text-red-400"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveConnectionId(conn.id);
+                      props.onDisconnect();
+                    }}
+                    title="Disconnect"
+                  >
+                    {/* Unplug / power-off icon */}
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M5 2v4M11 2v4M4 6h8v3a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6zM8 13v2" />
+                      <path d="M2 2l12 12" stroke-width="2" />
+                    </svg>
+                  </button>
+                </Show>
               </div>
             </div>
           )}
