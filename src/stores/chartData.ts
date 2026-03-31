@@ -235,6 +235,32 @@ export function createChartDataStore() {
     return { timestamps, values };
   }
 
+  /** Resize all series buffers to the new max, preserving the most recent samples */
+  function resizeSeries(newMax: number) {
+    for (const key of Object.keys(seriesData)) {
+      const s = seriesData[key];
+      const oldMax = s.timestamps.length;
+      if (oldMax === newMax) continue;
+
+      const newTimestamps = new Float64Array(newMax);
+      const newValues = new Float64Array(newMax);
+      const retain = Math.min(s.count, newMax);
+      const srcStart = s.head - retain;
+
+      for (let i = 0; i < retain; i++) {
+        const srcIdx = ((srcStart + i) % oldMax + oldMax) % oldMax;
+        newTimestamps[i] = s.timestamps[srcIdx];
+        newValues[i] = s.values[srcIdx];
+      }
+
+      s.timestamps = newTimestamps;
+      s.values = newValues;
+      s.head = retain;
+      s.count = retain;
+    }
+    setSeriesVersion((v) => v + 1);
+  }
+
   function clearAll() {
     seriesData = {};
     topicConfigs = {};
@@ -242,11 +268,18 @@ export function createChartDataStore() {
     setConfigVersion(0);
   }
 
+  function setMaxPointsSafe(newMax: number) {
+    const old = maxPoints();
+    if (newMax === old) return;
+    setMaxPoints(newMax);
+    resizeSeries(newMax);
+  }
+
   return {
     chartActive,
     setChartActive,
     maxPoints,
-    setMaxPoints,
+    setMaxPoints: setMaxPointsSafe,
     seriesVersion,
     configVersion,
     initSeries,
