@@ -2,14 +2,32 @@ import { createMemo, createSignal, For } from "solid-js";
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { useTopicTree } from "../../stores/topics";
 import { useUI } from "../../stores/ui";
-import { flattenVisibleNodes, flattenFilteredNodes, collectAllNodePaths, hasRetainedInTree, getNodeByTopic } from "../../lib/topic-tree";
+import { useConnections } from "../../stores/connections";
+import { flattenVisibleNodes, flattenFilteredNodes, collectAllNodePaths, hasRetainedInTree, getNodeByTopic, collectRetainedTopics } from "../../lib/topic-tree";
 import TopicRow from "./TopicRow";
 import { tooltip } from "../ui/tooltip";
 
 export default function TopicTree() {
   const { topicTree, clearTree, clearSubtree } = useTopicTree();
-  const { expandedNodes, selectedTopic, setSelectedTopic, toggleExpanded, sortTree, toggleSort, autoExpand, toggleAutoExpand, expandAll, showRetainedOnly, toggleShowRetainedOnly } =
+  const { expandedNodes, selectedTopic, setSelectedTopic, toggleExpanded, sortTree, toggleSort, autoExpand, toggleAutoExpand, expandAll, showRetainedOnly, toggleShowRetainedOnly, publish, connectionStatuses } =
     useUI();
+  const { activeConnectionId, getConnection } = useConnections();
+
+  const anyConnected = () => [...connectionStatuses().values()].some((s) => s === "connected");
+
+  function clearRetainedMessages() {
+    const topic = selectedTopic();
+    if (!topic) return;
+    const node = getNodeByTopic(topicTree, topic);
+    if (!node) return;
+    const connId = activeConnectionId();
+    const conn = connId ? getConnection(connId) : null;
+    const prefix = conn ? `${conn.name}/` : "";
+    for (const t of collectRetainedTopics(node)) {
+      const cleanTopic = prefix && t.startsWith(prefix) ? t.slice(prefix.length) : t;
+      publish(cleanTopic, "", 0, true);
+    }
+  }
 
   let scrollRef!: HTMLDivElement;
 
@@ -154,6 +172,21 @@ export default function TopicTree() {
           >
             <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4M5 6v4M9 6v4" />
+            </svg>
+          </button>
+          <button
+            class="p-1 rounded shrink-0 transition-colors"
+            classList={{
+              "text-slate-500 cursor-not-allowed opacity-50": !selectedTopic() || !anyConnected(),
+              "text-orange-400 hover:text-orange-300": !!selectedTopic() && anyConnected(),
+            }}
+            disabled={!selectedTopic() || !anyConnected()}
+            onClick={() => clearRetainedMessages()}
+            use:tooltip={!selectedTopic() ? "Select a node to clear retained" : !anyConnected() ? "Connect to clear retained" : "Publish empty retained to clear broker"}
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 3h10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3M5 1h4" />
+              <path d="M4.5 7l2 2 3-4" />
             </svg>
           </button>
         </div>
