@@ -11,15 +11,17 @@ export interface BrowseConfig {
 }
 
 async function graphqlPost(url: string, body: object, token?: string, ignoreCertErrors?: boolean): Promise<unknown> {
+  // Electron: route through main process (Node.js) to bypass Chromium HSTS and cert issues
+  if (typeof __ELECTRON__ !== "undefined" && __ELECTRON__ && window.mqttIpc?.graphqlProxy) {
+    return window.mqttIpc.graphqlProxy({ url, body, token, ignoreCertErrors });
+  }
+
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  let fetchUrl = url;
-  if (typeof __ELECTRON__ === "undefined" || !__ELECTRON__) {
-    headers["X-Wincc-Target"] = url;
-    if (ignoreCertErrors) headers["X-Ignore-Cert-Errors"] = "1";
-    fetchUrl = "/api/winccua-proxy";
-  }
+  headers["X-Wincc-Target"] = url;
+  if (ignoreCertErrors) headers["X-Ignore-Cert-Errors"] = "1";
+  const fetchUrl = "/api/winccua-proxy";
 
   const res = await fetch(fetchUrl, { method: "POST", headers, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);

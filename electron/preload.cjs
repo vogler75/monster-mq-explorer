@@ -10,4 +10,7 @@ contextBridge.exposeInMainWorld("mqttIpc", {
   /** Tell main process which hosts should bypass TLS cert validation.
    *  Returns a Promise that resolves once the main process has applied the new proc. */
   setIgnoreCertHosts: (hosts) => ipcRenderer.invoke("ignore-cert-hosts", hosts),
+  /** Proxy a GraphQL POST request through the main process (Node.js http/https).
+   *  Bypasses Chromium's HSTS cache and Web Worker cert-verify limitations. */
+  graphqlProxy: (args) => ipcRenderer.invoke("graphql-proxy", args),
 });

@@ -10,6 +10,7 @@ declare global {
       send: (connectionId: string, command: WorkerCommand) => void;
       onEvent: (callback: (connectionId: string, event: WorkerEvent) => void) => () => void;
       setIgnoreCertHosts: (hosts: string[]) => Promise<void>;
+      graphqlProxy: (args: { url: string; body: object; token?: string; ignoreCertErrors?: boolean }) => Promise<unknown>;
     };
   }
 }

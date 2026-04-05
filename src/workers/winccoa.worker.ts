@@ -112,13 +112,14 @@ async function graphqlPost(url: string, body: object, token?: string, ignoreCert
   return res.json();
 }
 
-async function connectToWinCCOA(config: ConnectionConfig) {
+async function connectToWinCCOA(config: ConnectionConfig, prefetchedToken?: string) {
   activeTagPathSplitters = [...new Set([":"].concat([...config.tagPathSplit]))];
   const http = httpUrl(config);
 
   // Step 1 — Authenticate
-  let token: string | undefined;
-  if (config.username) {
+  let token: string | undefined = prefetchedToken;
+  if (!token && config.username) {
+    // Fallback: fetch in worker (PWA mode where Vite proxy is available)
     const loginBody = {
       query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
       variables: { username: config.username, password: config.password },
@@ -316,7 +317,7 @@ self.onmessage = (e: MessageEvent<WorkerCommand>) => {
   switch (cmd.type) {
     case "connect":
       disconnectFromWinCCOA();
-      connectToWinCCOA(cmd.config);
+      connectToWinCCOA(cmd.config, cmd.token);
       break;
     case "disconnect":
       disconnectFromWinCCOA();

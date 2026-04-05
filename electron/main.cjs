@@ -1,9 +1,20 @@
 const { app, BrowserWindow, shell, ipcMain, session } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const mqtt = require("mqtt");
 const pkg = require("../package.json");
 
 app.setVersion(pkg.version);
+
+// ---------- Clear cached HSTS state ----------
+// Chromium caches Strict-Transport-Security headers and silently upgrades
+// ws:// to wss:// and http:// to https:// for hosts that previously sent HSTS.
+// This breaks plain WS/HTTP connections to WinCC servers.
+// Delete the TransportSecurity file before Chromium loads it.
+try {
+  const tsFile = path.join(app.getPath("userData"), "TransportSecurity");
+  fs.unlinkSync(tsFile);
+} catch { /* file may not exist — that's fine */ }
 
 // Keep a global reference so the window is not garbage-collected
 let mainWindow;
@@ -22,10 +33,65 @@ function applyCertVerifyProc() {
   });
 }
 
+// Fallback: catch certificate errors that setCertificateVerifyProc may miss
+// (e.g. fetch/WebSocket from Web Workers).
+app.on("certificate-error", (event, _webContents, url, _error, _cert, callback) => {
+  try {
+    const hostname = new URL(url).hostname;
+    if (ignoreCertHosts.has(hostname)) {
+      event.preventDefault();
+      callback(true);
+      return;
+    }
+  } catch { /* malformed URL — fall through */ }
+  callback(false);
+});
+
 ipcMain.handle("ignore-cert-hosts", (_event, hosts) => {
   ignoreCertHosts.clear();
   for (const h of hosts) ignoreCertHosts.add(h);
   applyCertVerifyProc();
+});
+
+// ---------- GraphQL proxy for WinCC UA/OA ----------
+// Routes HTTP requests through Node.js, bypassing Chromium's network stack
+// (avoids HSTS upgrades and Web Worker cert-verify limitations).
+ipcMain.handle("graphql-proxy", (_event, { url, body, token, ignoreCertErrors }) => {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const isHttps = parsed.protocol === "https:";
+    const mod = isHttps ? require("https") : require("http");
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const payload = JSON.stringify(body);
+    headers["Content-Length"] = Buffer.byteLength(payload);
+
+    const options = {
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: "POST",
+      headers,
+    };
+    if (isHttps && ignoreCertErrors) {
+      options.rejectUnauthorized = false;
+    }
+
+    const req = mod.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try { resolve(JSON.parse(data)); } catch { resolve(data); }
+        } else {
+          reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
+        }
+      });
+    });
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
 });
 
 // ---------- TCP MQTT connections managed in main process ----------
@@ -201,6 +267,17 @@ function createWindow() {
 
 app.whenReady().then(() => {
   applyCertVerifyProc();
+
+  // Strip Strict-Transport-Security headers from all responses so Chromium
+  // never caches HSTS for any host.  This prevents silent ws→wss / http→https
+  // upgrades that break plain-text connections to WinCC servers.
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const headers = Object.assign({}, details.responseHeaders);
+    delete headers["strict-transport-security"];
+    delete headers["Strict-Transport-Security"];
+    callback({ responseHeaders: headers });
+  });
+
   createWindow();
 });
 

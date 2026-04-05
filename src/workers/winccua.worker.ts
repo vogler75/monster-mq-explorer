@@ -109,77 +109,86 @@ async function graphqlPost(url: string, body: object, token?: string, ignoreCert
   return res.json();
 }
 
-async function connectToWinCCUA(config: ConnectionConfig) {
+async function connectToWinCCUA(config: ConnectionConfig, prefetchedToken?: string, prefetchedTags?: string[]) {
   activeTagPathSplitters = [...new Set(["::"].concat([...config.tagPathSplit]))];
   const http = httpUrl(config);
 
-  // Step 1 — Authenticate and obtain a Bearer token
-  let token: string | undefined;
-  if (config.username) {
-    const loginBody = {
-      query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
-      variables: { username: config.username, password: config.password },
-    };
-    console.log("[WinCC UA] Login request →", http, loginBody);
-    let result: { data?: { login?: { token?: string } }; errors?: unknown[] };
-    try {
-      result = await graphqlPost(http, loginBody, undefined, config.ignoreCertErrors) as typeof result;
-      console.log("[WinCC UA] Login response ←", JSON.stringify(result));
-    } catch (err) {
-      console.error("[WinCC UA] Login request failed:", err);
-      self.postMessage({ type: "error", message: `Login request failed: ${err}` } as WorkerEvent);
-      self.postMessage({ type: "disconnected" } as WorkerEvent);
-      return;
-    }
-    if (result.errors) {
-      self.postMessage({ type: "error", message: `Login failed: ${JSON.stringify(result.errors)}` } as WorkerEvent);
-      self.postMessage({ type: "disconnected" } as WorkerEvent);
-      return;
-    }
-    token = result.data?.login?.token;
-    if (!token) {
-      self.postMessage({ type: "error", message: "Login succeeded but returned no token" } as WorkerEvent);
-      self.postMessage({ type: "disconnected" } as WorkerEvent);
-      return;
-    }
-    console.log("[WinCC UA] Login OK, token obtained");
-  }
+  let token: string | undefined = prefetchedToken;
+  let tagNames: string[];
 
-  // Step 2 — Collect tags: explicit lists + browse results for filter subscriptions
-  const explicitTags = config.subscriptions
-    .filter((s) => s.tags && s.tags.length > 0)
-    .flatMap((s) => s.tags!);
-
-  const nameFilters = config.subscriptions
-    .filter((s) => !s.tags || s.tags.length === 0)
-    .map((s) => s.topic.trim())
-    .filter((t) => t.length > 0);
-
-  let browsedTags: string[] = [];
-  if (nameFilters.length > 0) {
-    const browseBody = {
-      query: `query Browse($nameFilters: [String], $objectTypeFilters: [ObjectTypesEnum]) { browse(nameFilters: $nameFilters, objectTypeFilters: $objectTypeFilters) { name } }`,
-      variables: { nameFilters, objectTypeFilters: ["TAG"] },
-    };
-    console.log("[WinCC UA] Browse request →", http, browseBody);
-    try {
-      const result = await graphqlPost(http, browseBody, token, config.ignoreCertErrors
-      ) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
-      console.log("[WinCC UA] Browse response ←", JSON.stringify(result));
-      if (result.errors) {
-        self.postMessage({ type: "error", message: `Browse failed: ${JSON.stringify(result.errors)}` } as WorkerEvent);
+  if (prefetchedTags && prefetchedTags.length > 0) {
+    // Tags (and token) were pre-fetched by the renderer via IPC proxy
+    tagNames = prefetchedTags;
+    console.log(`[WinCC UA] Using ${tagNames.length} pre-fetched tags`);
+  } else {
+    // Fallback: fetch in worker (PWA mode where Vite proxy is available)
+    // Step 1 — Authenticate and obtain a Bearer token
+    if (!token && config.username) {
+      const loginBody = {
+        query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
+        variables: { username: config.username, password: config.password },
+      };
+      console.log("[WinCC UA] Login request →", http, loginBody);
+      let result: { data?: { login?: { token?: string } }; errors?: unknown[] };
+      try {
+        result = await graphqlPost(http, loginBody, undefined, config.ignoreCertErrors) as typeof result;
+        console.log("[WinCC UA] Login response ←", JSON.stringify(result));
+      } catch (err) {
+        console.error("[WinCC UA] Login request failed:", err);
+        self.postMessage({ type: "error", message: `Login request failed: ${err}` } as WorkerEvent);
         self.postMessage({ type: "disconnected" } as WorkerEvent);
         return;
       }
-      browsedTags = result.data?.browse?.map((r) => r.name) ?? [];
-    } catch (err) {
-      self.postMessage({ type: "error", message: `Browse request failed: ${err}` } as WorkerEvent);
-      self.postMessage({ type: "disconnected" } as WorkerEvent);
-      return;
+      if (result.errors) {
+        self.postMessage({ type: "error", message: `Login failed: ${JSON.stringify(result.errors)}` } as WorkerEvent);
+        self.postMessage({ type: "disconnected" } as WorkerEvent);
+        return;
+      }
+      token = result.data?.login?.token;
+      if (!token) {
+        self.postMessage({ type: "error", message: "Login succeeded but returned no token" } as WorkerEvent);
+        self.postMessage({ type: "disconnected" } as WorkerEvent);
+        return;
+      }
+      console.log("[WinCC UA] Login OK, token obtained");
     }
-  }
 
-  let tagNames = [...explicitTags, ...browsedTags];
+    // Step 2 — Collect tags: explicit lists + browse results for filter subscriptions
+    const explicitTags = config.subscriptions
+      .filter((s) => s.tags && s.tags.length > 0)
+      .flatMap((s) => s.tags!);
+
+    const nameFilters = config.subscriptions
+      .filter((s) => !s.tags || s.tags.length === 0)
+      .map((s) => s.topic.trim())
+      .filter((t) => t.length > 0);
+
+    let browsedTags: string[] = [];
+    if (nameFilters.length > 0) {
+      const browseBody = {
+        query: `query Browse($nameFilters: [String], $objectTypeFilters: [ObjectTypesEnum]) { browse(nameFilters: $nameFilters, objectTypeFilters: $objectTypeFilters) { name } }`,
+        variables: { nameFilters, objectTypeFilters: ["TAG"] },
+      };
+      console.log("[WinCC UA] Browse request →", http, browseBody);
+      try {
+        const result = await graphqlPost(http, browseBody, token, config.ignoreCertErrors
+        ) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
+        console.log("[WinCC UA] Browse response ←", JSON.stringify(result));
+        if (result.errors) {
+          self.postMessage({ type: "error", message: `Browse failed: ${JSON.stringify(result.errors)}` } as WorkerEvent);
+          self.postMessage({ type: "disconnected" } as WorkerEvent);
+          return;
+        }
+        browsedTags = result.data?.browse?.map((r) => r.name) ?? [];
+      } catch (err) {
+        self.postMessage({ type: "error", message: `Browse request failed: ${err}` } as WorkerEvent);
+        self.postMessage({ type: "disconnected" } as WorkerEvent);
+        return;
+      }
+    }
+
+    tagNames = [...explicitTags, ...browsedTags];
+  }
   if (config.filterInternalTags) {
     const before = tagNames.length;
     tagNames = tagNames.filter((name) => !name.split("::").pop()!.startsWith("@"));
@@ -339,7 +348,7 @@ self.onmessage = (e: MessageEvent<WorkerCommand>) => {
   switch (cmd.type) {
     case "connect":
       disconnectFromWinCCUA();
-      connectToWinCCUA(cmd.config);
+      connectToWinCCUA(cmd.config, cmd.token, cmd.tags);
       break;
     case "disconnect":
       disconnectFromWinCCUA();

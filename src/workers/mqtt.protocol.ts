@@ -2,7 +2,7 @@ import type { ConnectionConfig } from "../types/mqtt";
 
 // Main thread -> Worker
 export type WorkerCommand =
-  | { type: "connect"; config: ConnectionConfig }
+  | { type: "connect"; config: ConnectionConfig; token?: string; tags?: string[] }
   | { type: "disconnect" }
   | { type: "subscribe"; topic: string; qos: 0 | 1 | 2 }
   | { type: "unsubscribe"; topic: string }

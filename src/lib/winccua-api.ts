@@ -11,15 +11,17 @@ export interface BrowseConfig {
 }
 
 async function graphqlPost(url: string, body: object, token?: string, ignoreCertErrors?: boolean): Promise<unknown> {
+  // Electron: route through main process (Node.js) to bypass Chromium HSTS and cert issues
+  if (typeof __ELECTRON__ !== "undefined" && __ELECTRON__ && window.mqttIpc?.graphqlProxy) {
+    return window.mqttIpc.graphqlProxy({ url, body, token, ignoreCertErrors });
+  }
+
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  let fetchUrl = url;
-  if (typeof __ELECTRON__ === "undefined" || !__ELECTRON__) {
-    headers["X-Wincc-Target"] = url;
-    if (ignoreCertErrors) headers["X-Ignore-Cert-Errors"] = "1";
-    fetchUrl = "/api/winccua-proxy";
-  }
+  headers["X-Wincc-Target"] = url;
+  if (ignoreCertErrors) headers["X-Ignore-Cert-Errors"] = "1";
+  const fetchUrl = "/api/winccua-proxy";
 
   const res = await fetch(fetchUrl, { method: "POST", headers, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -99,25 +101,17 @@ export async function queryLoggedTagValues(
   return rows;
 }
 
-export async function loginAndBrowse(config: BrowseConfig, nameFilters: string[]): Promise<string[]> {
+export async function browseTags(config: BrowseConfig, nameFilters: string[], token?: string): Promise<string[]> {
   const url = httpUrl(config);
-
-  let token: string | undefined;
-  if (config.username) {
-    const result = await graphqlPost(url, {
-      query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
-      variables: { username: config.username, password: config.password },
-    }, undefined, config.ignoreCertErrors) as { data?: { login?: { token?: string } }; errors?: unknown[] };
-    if (result.errors) throw new Error(`Login failed: ${JSON.stringify(result.errors)}`);
-    token = result.data?.login?.token;
-    if (!token) throw new Error("Login succeeded but returned no token");
-  }
-
   const result = await graphqlPost(url, {
     query: `query Browse($nameFilters: [String], $objectTypeFilters: [ObjectTypesEnum]) { browse(nameFilters: $nameFilters, objectTypeFilters: $objectTypeFilters) { name } }`,
     variables: { nameFilters, objectTypeFilters: ["TAG"] },
   }, token, config.ignoreCertErrors) as { data?: { browse?: { name: string }[] }; errors?: unknown[] };
-
   if (result.errors) throw new Error(`Browse failed: ${JSON.stringify(result.errors)}`);
   return result.data?.browse?.map((r) => r.name) ?? [];
+}
+
+export async function loginAndBrowse(config: BrowseConfig, nameFilters: string[]): Promise<string[]> {
+  const token = await login(config);
+  return browseTags(config, nameFilters, token);
 }

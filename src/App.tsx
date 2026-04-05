@@ -7,7 +7,7 @@ import { useTopicTree } from "./stores/topics";
 import { useUI } from "./stores/ui";
 import { broadcastMessages, broadcastChartMessage } from "./stores/tabStore";
 import { fetchArchiveGroups } from "./lib/monstermq-api";
-import { login as winccUaLogin, loginAndBrowse as winccUaBrowse } from "./lib/winccua-api";
+import { login as winccUaLogin, browseTags as winccUaBrowseTags, loginAndBrowse as winccUaBrowse } from "./lib/winccua-api";
 import { login as winccOaLogin, loginAndBrowse as winccOaBrowse } from "./lib/winccoa-api";
 import { createIpcAdapter, hasMqttIpc, type WorkerLike } from "./lib/mqtt-ipc";
 import Toolbar from "./components/layout/Toolbar";
@@ -175,7 +175,7 @@ export default function App() {
     setConnectionStatus(connectionId, "connecting");
     setActiveConnectionId(connectionId);
     const plainConfig = JSON.parse(JSON.stringify(unwrap(config)));
-    w.postMessage({ type: "connect", config: plainConfig } as WorkerCommand);
+    const isElectronApp = !!window.mqttIpc?.graphqlProxy;
 
     if (config.isMonsterMq && config.monsterMqGraphqlUrl) {
       fetchArchiveGroups(config.monsterMqGraphqlUrl)
@@ -185,7 +185,6 @@ export default function App() {
 
     if (config.connectionType === "winccua") {
       const browseConfig = { host: config.host, port: config.port, protocol: config.protocol as "ws" | "wss", path: config.path, username: config.username, password: config.password, ignoreCertErrors: config.ignoreCertErrors };
-      // Login and build topic→tagName mapping for history queries
       const splitters = [...new Set(["::"].concat([...config.tagPathSplit]))];
       function tagNameToTopic(name: string): string {
         let result = name;
@@ -200,28 +199,53 @@ export default function App() {
         .filter((s) => s.tags && s.tags.length > 0)
         .flatMap((s) => s.tags!);
 
-      (async () => {
-        try {
-          const token = await winccUaLogin(browseConfig);
-          if (token) setWinccToken(connectionId, token);
+      if (isElectronApp) {
+        // Electron: pre-fetch via IPC proxy (bypasses Chromium HSTS / cert issues),
+        // then pass token + tags to worker so it only opens the WebSocket.
+        (async () => {
+          try {
+            const token = await winccUaLogin(browseConfig);
+            if (token) setWinccToken(connectionId, token);
 
-          let browsedTags: string[] = [];
-          if (nameFilters.length > 0) {
-            browsedTags = await winccUaBrowse(browseConfig, nameFilters);
-          }
-          const allTags = [...explicitTags, ...browsedTags];
-          const mapping = new Map<string, string>();
-          for (const tag of allTags) {
-            mapping.set(tagNameToTopic(tag), tag);
-          }
-          setTopicTagNameMap(connectionId, mapping);
-        } catch (err) {
-          console.error(`[WinCC UA:${connectionId}] Failed to build tag mapping:`, err);
-        }
-      })();
-    }
+            let browsedTags: string[] = [];
+            if (nameFilters.length > 0) {
+              browsedTags = await winccUaBrowseTags(browseConfig, nameFilters, token);
+            }
+            let allTags = [...explicitTags, ...browsedTags];
+            if (config.filterInternalTags) {
+              allTags = allTags.filter((name) => !name.split("::").pop()!.startsWith("@"));
+            }
+            const mapping = new Map<string, string>();
+            for (const tag of allTags) mapping.set(tagNameToTopic(tag), tag);
+            setTopicTagNameMap(connectionId, mapping);
 
-    if (config.connectionType === "winccoa") {
+            w.postMessage({ type: "connect", config: plainConfig, token, tags: allTags } as WorkerCommand);
+          } catch (err) {
+            console.error(`[WinCC UA:${connectionId}] Pre-fetch failed:`, err);
+            setConnectionStatus(connectionId, "disconnected");
+          }
+        })();
+      } else {
+        // PWA: worker does its own login/browse via Vite proxy
+        w.postMessage({ type: "connect", config: plainConfig } as WorkerCommand);
+        (async () => {
+          try {
+            const token = await winccUaLogin(browseConfig);
+            if (token) setWinccToken(connectionId, token);
+            let browsedTags: string[] = [];
+            if (nameFilters.length > 0) {
+              browsedTags = await winccUaBrowse(browseConfig, nameFilters);
+            }
+            const allTags = [...explicitTags, ...browsedTags];
+            const mapping = new Map<string, string>();
+            for (const tag of allTags) mapping.set(tagNameToTopic(tag), tag);
+            setTopicTagNameMap(connectionId, mapping);
+          } catch (err) {
+            console.error(`[WinCC UA:${connectionId}] Failed to build tag mapping:`, err);
+          }
+        })();
+      }
+    } else if (config.connectionType === "winccoa") {
       const browseConfig = { host: config.host, port: config.port, protocol: config.protocol as "ws" | "wss", path: config.path, username: config.username, password: config.password, ignoreCertErrors: config.ignoreCertErrors };
       const splitters = [...new Set([":"].concat([...config.tagPathSplit]))];
       function oaTagNameToTopic(name: string): string {
@@ -238,25 +262,50 @@ export default function App() {
         .filter((s) => s.tags && s.tags.length > 0)
         .flatMap((s) => s.tags!);
 
-      (async () => {
-        try {
-          const token = await winccOaLogin(browseConfig);
-          if (token) setWinccToken(connectionId, token);
+      if (isElectronApp) {
+        // Electron: pre-fetch token via IPC proxy, then pass to worker
+        (async () => {
+          try {
+            const token = await winccOaLogin(browseConfig);
+            if (token) setWinccToken(connectionId, token);
 
-          let browsedTags: string[] = [];
-          if (nameFilters.length > 0) {
-            browsedTags = await winccOaBrowse(browseConfig, nameFilters);
+            let browsedTags: string[] = [];
+            if (nameFilters.length > 0) {
+              browsedTags = await winccOaBrowse(browseConfig, nameFilters);
+            }
+            const allTags = [...explicitTags, ...browsedTags];
+            const mapping = new Map<string, string>();
+            for (const tag of allTags) mapping.set(oaTagNameToTopic(tag), tag);
+            setTopicTagNameMap(connectionId, mapping);
+
+            w.postMessage({ type: "connect", config: plainConfig, token } as WorkerCommand);
+          } catch (err) {
+            console.error(`[WinCC OA:${connectionId}] Pre-fetch failed:`, err);
+            setConnectionStatus(connectionId, "disconnected");
           }
-          const allTags = [...explicitTags, ...browsedTags];
-          const mapping = new Map<string, string>();
-          for (const tag of allTags) {
-            mapping.set(oaTagNameToTopic(tag), tag);
+        })();
+      } else {
+        // PWA: worker does its own login via Vite proxy
+        w.postMessage({ type: "connect", config: plainConfig } as WorkerCommand);
+        (async () => {
+          try {
+            const token = await winccOaLogin(browseConfig);
+            if (token) setWinccToken(connectionId, token);
+            let browsedTags: string[] = [];
+            if (nameFilters.length > 0) {
+              browsedTags = await winccOaBrowse(browseConfig, nameFilters);
+            }
+            const allTags = [...explicitTags, ...browsedTags];
+            const mapping = new Map<string, string>();
+            for (const tag of allTags) mapping.set(oaTagNameToTopic(tag), tag);
+            setTopicTagNameMap(connectionId, mapping);
+          } catch (err) {
+            console.error(`[WinCC OA:${connectionId}] Failed to build tag mapping:`, err);
           }
-          setTopicTagNameMap(connectionId, mapping);
-        } catch (err) {
-          console.error(`[WinCC OA:${connectionId}] Failed to build tag mapping:`, err);
-        }
-      })();
+        })();
+      }
+    } else {
+      w.postMessage({ type: "connect", config: plainConfig } as WorkerCommand);
     }
   }
 
