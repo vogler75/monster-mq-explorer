@@ -1,6 +1,6 @@
 {
   "name": "monster-mqtt-explorer",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "High-performance MQTT client with topic tree visualization",
   "type": "module",
   "main": "electron/main.cjs",
