@@ -6,19 +6,23 @@ import { createRootNode } from "../lib/topic-tree";
 
 const [topicTree, setTopicTree] = createStore<TopicNode>(createRootNode());
 const [totalMessages, setTotalMessages] = createSignal(0);
-const [messagesPerSecond, setMessagesPerSecond] = createSignal(0);
+const [messagesPerSecond, setMessagesPerSecond] = createSignal<Map<string, number>>(new Map());
 
 // Track message rate
-let msgCountWindow = 0;
-let lastRateUpdate = Date.now();
+const msgCountWindows = new Map<string, number>();
+const lastRateUpdates = new Map<string, number>();
 
-function updateRate() {
+function updateRate(connectionName: string) {
   const now = Date.now();
+  const lastRateUpdate = lastRateUpdates.get(connectionName) ?? now;
   const elapsed = (now - lastRateUpdate) / 1000;
   if (elapsed >= 1) {
-    setMessagesPerSecond(Math.round(msgCountWindow / elapsed));
-    msgCountWindow = 0;
-    lastRateUpdate = now;
+    const msgCountWindow = msgCountWindows.get(connectionName) ?? 0;
+    setMessagesPerSecond((prev) => new Map(prev).set(connectionName, Math.round(msgCountWindow / elapsed)));
+    msgCountWindows.set(connectionName, 0);
+    lastRateUpdates.set(connectionName, now);
+  } else if (!lastRateUpdates.has(connectionName)) {
+    lastRateUpdates.set(connectionName, now);
   }
 }
 
@@ -26,9 +30,11 @@ export function useTopicTree() {
   return {
     topicTree,
     totalMessages,
-    messagesPerSecond,
+    messagesPerSecond(connectionName: string | null | undefined) {
+      return connectionName ? messagesPerSecond().get(connectionName) ?? 0 : 0;
+    },
 
-    processBatch(messages: SerializedMessage[]): string[] {
+    processBatch(messages: SerializedMessage[], connectionName: string): string[] {
       const newTopics: string[] = [];
       setTopicTree(
         produce((root) => {
@@ -60,17 +66,17 @@ export function useTopicTree() {
         })
       );
       setTotalMessages((n) => n + messages.length);
-      msgCountWindow += messages.length;
-      updateRate();
+      msgCountWindows.set(connectionName, (msgCountWindows.get(connectionName) ?? 0) + messages.length);
+      updateRate(connectionName);
       return newTopics;
     },
 
     clearTree() {
       setTopicTree(createRootNode());
       setTotalMessages(0);
-      setMessagesPerSecond(0);
-      msgCountWindow = 0;
-      lastRateUpdate = Date.now();
+      setMessagesPerSecond(new Map());
+      msgCountWindows.clear();
+      lastRateUpdates.clear();
     },
 
     clearSubtree(topic: string) {

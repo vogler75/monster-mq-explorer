@@ -19,6 +19,7 @@ export default function Toolbar(props: Props) {
 
   const activeConn = () => connections.find((c) => c.id === activeConnectionId());
   const activeStatus = () => activeConnectionId() ? getConnectionStatus(activeConnectionId()!) : "disconnected";
+  const activeMessagesPerSecond = () => messagesPerSecond(activeConn()?.name);
 
   return (
     <div class="flex items-center gap-3 px-4 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
@@ -56,7 +57,7 @@ export default function Toolbar(props: Props) {
       {/* Stats */}
       <Show when={activeStatus() === "connected"}>
         <div class="flex items-center gap-3 text-xs text-slate-400">
-          <span>{messagesPerSecond()} msg/s</span>
+          <span>{activeMessagesPerSecond()} msg/s</span>
           <button
             class="p-0.5 rounded transition-colors"
             classList={{

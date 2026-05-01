@@ -123,7 +123,7 @@ export default function App() {
             : event.batch;
           // Single batch so tree update + expand are applied atomically
           batch(() => {
-            const newTopics = processBatch(msgs);
+            const newTopics = processBatch(msgs, config?.name ?? connectionId);
             broadcastMessages(msgs);
             for (const m of msgs) {
               broadcastChartMessage(m.topic, m.payload, m.timestamp);
