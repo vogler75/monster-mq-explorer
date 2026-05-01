@@ -8,12 +8,23 @@ function normalizeQos(value: unknown): 0 | 1 | 2 {
   return value === 1 || value === 2 ? value : 0;
 }
 
+function normalizeProtocol(value: unknown, connectionType: ConnectionConfig["connectionType"]): ConnectionConfig["protocol"] {
+  if (connectionType === "mqtt") {
+    return value === "ws" || value === "wss" || value === "mqtt" || value === "mqtts"
+      ? value
+      : "wss";
+  }
+  return value === "ws" ? "ws" : "wss";
+}
+
 function readRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
 function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig {
   const defaults = createDefaultConnection();
+  const connectionType: ConnectionConfig["connectionType"] =
+    input.connectionType === "winccua" ? "winccua" : input.connectionType === "winccoa" ? "winccoa" : "mqtt";
   const subscriptions: Subscription[] = Array.isArray(input.subscriptions)
     ? input.subscriptions
         .map((sub) => readRecord(sub))
@@ -31,10 +42,10 @@ function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig
   return {
     id: typeof input.id === "string" && input.id ? input.id : defaults.id,
     name: typeof input.name === "string" ? input.name : defaults.name,
-    connectionType: input.connectionType === "winccua" ? "winccua" : input.connectionType === "winccoa" ? "winccoa" : "mqtt",
+    connectionType,
     host: typeof input.host === "string" ? input.host : defaults.host,
     port: typeof input.port === "number" && Number.isFinite(input.port) ? input.port : defaults.port,
-    protocol: input.protocol === "ws" ? "ws" : defaults.protocol,
+    protocol: normalizeProtocol(input.protocol, connectionType),
     path: typeof input.path === "string" ? input.path : defaults.path,
     username: typeof input.username === "string" ? input.username : defaults.username,
     password: typeof input.password === "string" ? input.password : defaults.password,
@@ -46,6 +57,7 @@ function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig
     filterInternalTags: typeof input.filterInternalTags === "boolean" ? input.filterInternalTags : false,
     isMonsterMq: typeof input.isMonsterMq === "boolean" ? input.isMonsterMq : false,
     monsterMqGraphqlUrl: typeof input.monsterMqGraphqlUrl === "string" ? input.monsterMqGraphqlUrl : "",
+    ignoreCertErrors: typeof input.ignoreCertErrors === "boolean" ? input.ignoreCertErrors : false,
   };
 }
 
