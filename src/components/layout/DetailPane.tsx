@@ -99,7 +99,7 @@ export default function DetailPane() {
   const [editingTabId, setEditingTabId] = createSignal<string | null>(null);
 
   return (
-    <div class="flex-1 flex flex-col overflow-hidden bg-slate-900 min-w-0">
+    <div class="relative flex-1 flex flex-col overflow-hidden bg-slate-900 min-w-0">
       {/* Tab bar */}
       <div class="flex items-center bg-slate-800/60 border-b border-slate-700 shrink-0 min-h-0 overflow-x-auto">
         <For each={tabs()}>
@@ -158,7 +158,19 @@ export default function DetailPane() {
         {(tab) => (
           <div
             class="flex-1 flex flex-col overflow-hidden min-w-0"
-            style={{ display: activeTabId() === tab.id ? undefined : "none" }}
+            style={
+              activeTabId() === tab.id
+                ? {}
+                : {
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    visibility: "hidden",
+                    "pointer-events": "none",
+                  }
+            }
           >
             <TabContext.Provider value={tab.stores}>
               <TabContent />

@@ -14,11 +14,18 @@ export default function TopicRow(props: Props) {
   const [flash, setFlash] = createSignal(false);
 
   // Flash on update
+  let lastKey = "";
   let lastUpdated = 0;
   createEffect(() => {
     const node = props.node;
     if (!node) return;
     const ts = node.node.lastUpdated;
+    const key = node.key;
+    if (key !== lastKey) {
+      lastKey = key;
+      lastUpdated = ts;
+      return;
+    }
     if (ts > lastUpdated && lastUpdated > 0) {
       setFlash(true);
       setTimeout(() => setFlash(false), 600);

@@ -1,11 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1e293b"/>
-      <stop offset="100%" stop-color="#0f172a"/>
-    </linearGradient>
-  </defs>
-  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
-  <text x="16" y="21.5" font-family="system-ui,sans-serif" font-size="14" font-weight="700" fill="#60a5fa" text-anchor="middle" letter-spacing="-0.5">MQ</text>
-  <path d="M6 25.5 q4-4 8-1 q4 3 8-1" fill="none" stroke="#3b82f6" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+  <!-- Background rounded rectangle (macOS Squircle style) -->
+  <rect width="32" height="32" rx="7.5" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+  
+  <!-- Bolts on sides -->
+  <rect x="5.5" y="16" width="3" height="2" rx="0.5" fill="#94a3b8" stroke="#1e293b" stroke-width="1"/>
+  <rect x="23.5" y="16" width="3" height="2" rx="0.5" fill="#94a3b8" stroke="#1e293b" stroke-width="1"/>
+  
+  <!-- Friendly Frankenstein Head shape -->
+  <path d="M9.5 10 h13 v9 a3 3 0 0 1-3 3 h-7 a3 3 0 0 1-3-3 z" fill="#99f6e4" stroke="#1e293b" stroke-width="1.5" stroke-linejoin="round"/>
+  
+  <!-- Stitches on forehead -->
+  <path d="M10.5 12.5 h11 M13 11 v3 M16 11 v3 M19 11 v3" stroke="#1e293b" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
+  
+  <!-- Left Eye: Cute flat cartoon pupil -->
+  <circle cx="13.5" cy="16.5" r="1.2" fill="#1e293b"/>
+  
+  <!-- Right Eye: Cute cyan cybernetic lens -->
+  <circle cx="18.5" cy="16.5" r="2.2" fill="#22d3ee" stroke="#1e293b" stroke-width="1"/>
+  <circle cx="18.5" cy="16.5" r="1" fill="#1e293b"/>
+  <circle cx="18.5" cy="16.5" r="0.4" fill="#ef4444"/>
 </svg>

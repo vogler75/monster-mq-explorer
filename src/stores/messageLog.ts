@@ -27,6 +27,8 @@ export function createMessageLogStore() {
   const [logMessages, setLogMessages] = createStore<LoggedMessage[]>([]);
   const [liveTopics, setLiveTopics] = createStore<Record<string, LoggedMessage>>({});
   const [recentlyUpdated, setRecentlyUpdated] = createSignal<Set<string>>(new Set());
+  const topicUpdateTimes = new Map<string, number>();
+  let pruneTimer: any = null;
 
   return {
     logEnabled, setLogEnabled,
@@ -57,15 +59,40 @@ export function createMessageLogStore() {
         })
       );
 
+      const now = Date.now();
       const updatedSet = new Set(matching.map((m) => m.topic));
-      setRecentlyUpdated((prev) => new Set([...prev, ...updatedSet]));
-      setTimeout(() => {
-        setRecentlyUpdated((prev) => {
-          const next = new Set(prev);
-          for (const t of updatedSet) next.delete(t);
-          return next;
-        });
-      }, 650);
+      for (const t of updatedSet) {
+        topicUpdateTimes.set(t, now);
+      }
+      setRecentlyUpdated((prev) => {
+        const next = new Set(prev);
+        for (const t of updatedSet) next.add(t);
+        return next;
+      });
+
+      if (!pruneTimer) {
+        pruneTimer = setInterval(() => {
+          const currentTime = Date.now();
+          const toPrune: string[] = [];
+          for (const [t, time] of topicUpdateTimes.entries()) {
+            if (currentTime - time >= 650) {
+              toPrune.push(t);
+              topicUpdateTimes.delete(t);
+            }
+          }
+          if (toPrune.length > 0) {
+            setRecentlyUpdated((prev) => {
+              const next = new Set(prev);
+              for (const t of toPrune) next.delete(t);
+              return next;
+            });
+          }
+          if (topicUpdateTimes.size === 0) {
+            clearInterval(pruneTimer);
+            pruneTimer = null;
+          }
+        }, 100);
+      }
 
       const max = logMaxRows();
       setLogMessages(
@@ -80,6 +107,13 @@ export function createMessageLogStore() {
 
     clearLog(pinnedTopics?: Set<string>) {
       setLogMessages([]);
+      topicUpdateTimes.clear();
+      setRecentlyUpdated(new Set());
+      if (pruneTimer) {
+        clearInterval(pruneTimer);
+        pruneTimer = null;
+      }
+
       if (!pinnedTopics || pinnedTopics.size === 0) {
         setLiveTopics(reconcile({}));
       } else {
