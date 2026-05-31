@@ -2,21 +2,24 @@
   <!-- Background rounded rectangle (macOS Squircle style) -->
   <rect width="32" height="32" rx="7.5" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
   
-  <!-- Bolts on sides -->
-  <rect x="5.5" y="16" width="3" height="2" rx="0.5" fill="#94a3b8" stroke="#1e293b" stroke-width="1"/>
-  <rect x="23.5" y="16" width="3" height="2" rx="0.5" fill="#94a3b8" stroke="#1e293b" stroke-width="1"/>
+  <!-- Topic Tree Nodes inside the lens -->
+  <!-- Top Node -->
+  <circle cx="14" cy="11" r="2" fill="#0891b2" stroke="#1e293b" stroke-width="1"/>
   
-  <!-- Friendly Frankenstein Head shape -->
-  <path d="M9.5 10 h13 v9 a3 3 0 0 1-3 3 h-7 a3 3 0 0 1-3-3 z" fill="#99f6e4" stroke="#1e293b" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Connection lines -->
+  <path d="M14 13 v3 M9 18 h10 M9 18 v2 M19 18 v2" stroke="#1e293b" stroke-width="1" stroke-linecap="round"/>
   
-  <!-- Stitches on forehead -->
-  <path d="M10.5 12.5 h11 M13 11 v3 M16 11 v3 M19 11 v3" stroke="#1e293b" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
+  <!-- Bottom Left Node -->
+  <circle cx="9" cy="21" r="2" fill="#0891b2" stroke="#1e293b" stroke-width="1"/>
   
-  <!-- Left Eye: Cute flat cartoon pupil -->
-  <circle cx="13.5" cy="16.5" r="1.2" fill="#1e293b"/>
+  <!-- Bottom Right Node -->
+  <circle cx="19" cy="21" r="2" fill="#0891b2" stroke="#1e293b" stroke-width="1"/>
   
-  <!-- Right Eye: Cute cyan cybernetic lens -->
-  <circle cx="18.5" cy="16.5" r="2.2" fill="#22d3ee" stroke="#1e293b" stroke-width="1"/>
-  <circle cx="18.5" cy="16.5" r="1" fill="#1e293b"/>
-  <circle cx="18.5" cy="16.5" r="0.4" fill="#ef4444"/>
+  <!-- Magnifying Glass Ring (glowing cyan cyber ring) -->
+  <circle cx="14" cy="16" r="7.5" fill="none" stroke="#22d3ee" stroke-width="1.8"/>
+  
+  <!-- Magnifying Glass Handle -->
+  <path d="M19.5 21.5 l5.5 5.5" stroke="#1e293b" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M20 22 l4.5 4.5" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
+  <circle cx="25" cy="27" r="0.6" fill="#22d3ee"/>
 </svg>
