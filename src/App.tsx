@@ -6,7 +6,8 @@ import { useConnections } from "./stores/connections";
 import { useTopicTree } from "./stores/topics";
 import { useUI } from "./stores/ui";
 import { broadcastMessages, broadcastChartMessage } from "./stores/tabStore";
-import { fetchArchiveGroups } from "./lib/monstermq-api";
+import { fetchArchiveGroups, fetchBrowseTopics } from "./lib/monstermq-api";
+import { getNodeByTopic } from "./lib/topic-tree";
 import { login as winccUaLogin, browseTags as winccUaBrowseTags, loginAndBrowse as winccUaBrowse } from "./lib/winccua-api";
 import { login as winccOaLogin, loginAndBrowse as winccOaBrowse } from "./lib/winccoa-api";
 import { createIpcAdapter, hasMqttIpc, type WorkerLike } from "./lib/mqtt-ipc";
@@ -59,8 +60,8 @@ function getOrCreateWorker(connectionId: string, type: "mqtt" | "winccua" | "win
 export default function App() {
   const { connections, connectionsLoaded, activeConnectionId, setActiveConnectionId, getConnection, removeConnection } =
     useConnections();
-  const { processBatch } = useTopicTree();
-  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, clearConnectionState, showConnectionModal, showSubscriptionModal, showPublishPanel, setPublishFn, setSubscribeFn, setUnsubscribeFn, setDeleteConnectionFn, autoExpand, expandTopics, selectedTopic } = useUI();
+  const { processBatch, addBrowsedTopics, setBrowsedChildren, topicTree } = useTopicTree();
+  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, clearConnectionState, showConnectionModal, showSubscriptionModal, showPublishPanel, setPublishFn, setSubscribeFn, setUnsubscribeFn, setDeleteConnectionFn, autoExpand, expandTopics, selectedTopic, expandedNodes } = useUI();
 
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
   const [rightPanelWidth, setRightPanelWidth] = createSignal(300);
@@ -167,6 +168,15 @@ export default function App() {
   });
 
   async function connect(connectionId: string) {
+    const prevActiveId = activeConnectionId();
+    if (prevActiveId && prevActiveId !== connectionId) {
+      const prevW = workers.get(prevActiveId);
+      if (prevW) {
+        prevW.postMessage({ type: "disconnect" } as WorkerCommand);
+      }
+      setConnectionStatus(prevActiveId, "disconnected");
+    }
+
     const config = getConnection(connectionId);
     if (!config) return;
     await syncIgnoreCertHosts();
@@ -175,6 +185,12 @@ export default function App() {
     setConnectionStatus(connectionId, "connecting");
     setActiveConnectionId(connectionId);
     const plainConfig = JSON.parse(JSON.stringify(unwrap(config)));
+    if (plainConfig.isMonsterMq) {
+      // Filter out root "#" subscription to prevent subscribing to the root in production
+      plainConfig.subscriptions = plainConfig.subscriptions.filter(
+        (sub: any) => sub.topic !== "#"
+      );
+    }
     const isElectronApp = !!window.mqttIpc?.graphqlProxy;
 
     if (config.isMonsterMq && config.monsterMqGraphqlUrl) {
@@ -353,6 +369,66 @@ export default function App() {
     for (const w of workers.values()) w.terminate();
     workers.clear();
     workerIsIpc.clear();
+  });
+
+  // Helper to browse and insert topics for MonsterMQ connections
+  async function browseAndInsert(nodePath: string, topicQuery: string, archiveGroup: string, connId: string) {
+    const config = getConnection(connId);
+    if (!config || !config.monsterMqGraphqlUrl) return;
+
+    // Immediately mark as loading children to prevent concurrent duplicate calls
+    setBrowsedChildren(nodePath, true);
+
+    try {
+      const results = await fetchBrowseTopics(config.monsterMqGraphqlUrl, topicQuery, archiveGroup);
+      addBrowsedTopics(config.name, results);
+    } catch (err) {
+      console.error(`[MonsterMQ] Failed to browse topics for ${topicQuery}:`, err);
+      // Reset loading flag on error
+      setBrowsedChildren(nodePath, false);
+    }
+  }
+
+  // Effect to automatically browse MonsterMQ topics when a connection connects, or nodes are expanded/selected
+  createEffect(() => {
+    const connId = activeConnectionId();
+    if (!connId) return;
+
+    const status = getConnectionStatus(connId);
+    if (status !== "connected") return;
+
+    const config = getConnection(connId);
+    if (!config || !config.isMonsterMq || !config.monsterMqGraphqlUrl) return;
+
+    const archiveGroup = config.monsterMqArchiveGroup || "Default";
+    const expanded = expandedNodes();
+    const selected = selectedTopic();
+
+    // 1. Check if the connection root itself is loaded
+    const rootNode = getNodeByTopic(topicTree, config.name);
+    if (!rootNode || !rootNode.browsedChildren) {
+      void browseAndInsert(config.name, "+", archiveGroup, connId);
+    }
+
+    // 2. Check all expanded nodes under this connection
+    for (const path of expanded) {
+      if (path.startsWith(`${config.name}/`)) {
+        const node = getNodeByTopic(topicTree, path);
+        if (node && node.isBrowsed && !node.browsedChildren) {
+          const cleanTopic = path.slice(config.name.length + 1);
+          void browseAndInsert(path, `${cleanTopic}/+`, archiveGroup, connId);
+        }
+      }
+    }
+
+    // 3. Check selected node under this connection
+    if (selected && selected.startsWith(`${config.name}/`)) {
+      const node = getNodeByTopic(topicTree, selected);
+      if (node && node.isBrowsed && !node.browsedChildren) {
+        const cleanTopic = selected.slice(config.name.length + 1);
+        void browseAndInsert(selected, `${cleanTopic}/+`, archiveGroup, connId);
+      }
+    }
   });
 
   return (

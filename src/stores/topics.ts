@@ -2,7 +2,8 @@ import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import type { TopicNode, MqttMessage } from "../types/mqtt";
 import type { SerializedMessage } from "../workers/mqtt.protocol";
-import { createRootNode } from "../lib/topic-tree";
+import { createRootNode, getNodeByTopic } from "../lib/topic-tree";
+import type { MonsterMqBrowsedTopic } from "../lib/monstermq-api";
 
 const [topicTree, setTopicTree] = createStore<TopicNode>(createRootNode());
 const [totalMessages, setTotalMessages] = createSignal(0);
@@ -71,6 +72,56 @@ export function useTopicTree() {
       return newTopics;
     },
 
+    addBrowsedTopics(connectionName: string, topics: MonsterMqBrowsedTopic[]) {
+      setTopicTree(
+        produce((root) => {
+          if (!root.children[connectionName]) {
+            root.children[connectionName] = {
+              segment: connectionName,
+              fullTopic: connectionName,
+              children: {},
+              messageCount: 0,
+              lastMessage: null,
+              lastUpdated: 0,
+            };
+          }
+          const connNode = root.children[connectionName];
+
+          for (const t of topics) {
+            const segments = t.name.split("/");
+            let current = connNode;
+            for (let i = 0; i < segments.length; i++) {
+              const segment = segments[i];
+              if (!current.children[segment]) {
+                current.children[segment] = {
+                  segment,
+                  fullTopic: `${connectionName}/${segments.slice(0, i + 1).join("/")}`,
+                  children: {},
+                  messageCount: 0,
+                  lastMessage: null,
+                  lastUpdated: 0,
+                  isBrowsed: true,
+                };
+              }
+              current = current.children[segment];
+            }
+
+            if (t.value) {
+              const payload = new TextEncoder().encode(t.value.payload);
+              current.lastMessage = {
+                topic: `${connectionName}/${t.name}`,
+                payload,
+                qos: (t.value.qos ?? 0) as 0 | 1 | 2,
+                retain: false,
+                timestamp: t.value.timestamp ?? Date.now(),
+              };
+              current.lastUpdated = t.value.timestamp ?? Date.now();
+            }
+          }
+        })
+      );
+    },
+
     clearTree() {
       setTopicTree(createRootNode());
       setTotalMessages(0);
@@ -93,6 +144,17 @@ export function useTopicTree() {
           }
           // Delete the target node
           delete current.children[segments[segments.length - 1]];
+        })
+      );
+    },
+
+    setBrowsedChildren(topicPath: string, value: boolean) {
+      setTopicTree(
+        produce((root) => {
+          const node = getNodeByTopic(root, topicPath);
+          if (node) {
+            node.browsedChildren = value;
+          }
         })
       );
     },

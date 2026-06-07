@@ -57,6 +57,7 @@ function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig
     filterInternalTags: typeof input.filterInternalTags === "boolean" ? input.filterInternalTags : false,
     isMonsterMq: typeof input.isMonsterMq === "boolean" ? input.isMonsterMq : false,
     monsterMqGraphqlUrl: typeof input.monsterMqGraphqlUrl === "string" ? input.monsterMqGraphqlUrl : "",
+    monsterMqArchiveGroup: typeof input.monsterMqArchiveGroup === "string" ? input.monsterMqArchiveGroup : "",
     ignoreCertErrors: typeof input.ignoreCertErrors === "boolean" ? input.ignoreCertErrors : false,
   };
 }

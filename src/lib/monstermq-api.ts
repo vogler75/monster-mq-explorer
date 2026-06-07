@@ -57,3 +57,36 @@ export async function fetchArchivedMessages(
   });
   return data.archivedMessages ?? [];
 }
+
+export interface MonsterMqBrowsedTopic {
+  name: string;
+  value?: {
+    payload: string;
+    timestamp: number;
+    qos: number;
+  };
+}
+
+export async function fetchBrowseTopics(
+  graphqlUrl: string,
+  topic: string,
+  archiveGroup: string,
+): Promise<MonsterMqBrowsedTopic[]> {
+  const data = await graphqlPost(graphqlUrl, {
+    query: `query BrowseTopics($topic: String!, $archiveGroup: String) {
+      browseTopics(topic: $topic, archiveGroup: $archiveGroup) {
+        name
+        value {
+          payload
+          timestamp
+          qos
+        }
+      }
+    }`,
+    variables: {
+      topic,
+      archiveGroup,
+    },
+  });
+  return data.browseTopics ?? [];
+}

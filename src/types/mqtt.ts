@@ -20,6 +20,8 @@ export interface ConnectionConfig {
   isMonsterMq: boolean;
   /** GraphQL endpoint URL for MonsterMQ API (e.g. "https://broker:4000/graphql") */
   monsterMqGraphqlUrl: string;
+  /** Selected archive group for MonsterMQ data exploration */
+  monsterMqArchiveGroup: string;
   /** Accept invalid/self-signed TLS certificates (wss, mqtts) */
   ignoreCertErrors: boolean;
 }
@@ -46,6 +48,8 @@ export interface TopicNode {
   messageCount: number;
   lastMessage: MqttMessage | null;
   lastUpdated: number;
+  isBrowsed?: boolean;
+  browsedChildren?: boolean;
 }
 
 export interface FlatTreeNode {
@@ -80,6 +84,7 @@ export function createDefaultConnection(): ConnectionConfig {
     filterInternalTags: false,
     isMonsterMq: false,
     monsterMqGraphqlUrl: "",
+    monsterMqArchiveGroup: "",
     ignoreCertErrors: false,
   };
 }
@@ -101,6 +106,7 @@ export function createDefaultWinCCOAConnection(): ConnectionConfig {
     filterInternalTags: false,
     isMonsterMq: false,
     monsterMqGraphqlUrl: "",
+    monsterMqArchiveGroup: "",
     ignoreCertErrors: false,
   };
 }
@@ -122,6 +128,7 @@ export function createDefaultWinCCUAConnection(): ConnectionConfig {
     filterInternalTags: true,
     isMonsterMq: false,
     monsterMqGraphqlUrl: "",
+    monsterMqArchiveGroup: "",
     ignoreCertErrors: false,
   };
 }

@@ -52,7 +52,7 @@ export function flattenVisibleNodes(
 
     for (const key of childKeys) {
       const child = node.children[key];
-      const hasChildren = Object.keys(child.children).length > 0;
+      const hasChildren = Object.keys(child.children).length > 0 || (child.isBrowsed && !child.browsedChildren);
       const isExpanded = expandedSet.has(child.fullTopic);
 
       result.push({
@@ -131,7 +131,7 @@ export function flattenFilteredNodes(
 
     for (const key of childKeys) {
       const child = node.children[key];
-      const hasChildren = Object.keys(child.children).length > 0;
+      const hasChildren = Object.keys(child.children).length > 0 || (child.isBrowsed && !child.browsedChildren);
       const selfMatches = child.fullTopic.toLowerCase().includes(f);
 
       // Tentatively add this node; we'll remove it if neither it nor descendants match
@@ -192,4 +192,20 @@ export function collectRetainedTopics(node: TopicNode): string[] {
 
   walk(node);
   return result;
+}
+
+export function mqttTopicMatch(pattern: string, topic: string): boolean {
+  if (pattern === "#" || pattern === "*") return true;
+  const patternSegs = pattern.split("/");
+  const topicSegs = topic.split("/");
+  for (let i = 0; i < patternSegs.length; i++) {
+    const p = patternSegs[i];
+    if (p === "#") return true;
+    if (p === "+") {
+      if (i >= topicSegs.length) return false;
+      continue;
+    }
+    if (p !== topicSegs[i]) return false;
+  }
+  return patternSegs.length === topicSegs.length;
 }

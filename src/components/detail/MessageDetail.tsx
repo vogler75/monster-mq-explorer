@@ -40,8 +40,8 @@ interface Props {
 }
 
 export default function MessageDetail(props: Props) {
-  const { publish, getConnectionStatus } = useUI();
-  const { activeConnectionId, getConnection } = useConnections();
+  const { publish, getConnectionStatus, subscribeLive, unsubscribeLive } = useUI();
+  const { activeConnectionId, getConnection, addSubscription, removeSubscriptionAt } = useConnections();
   const connectionStatus = () => activeConnectionId() ? getConnectionStatus(activeConnectionId()!) : "disconnected";
   const chartData = useTabChartData();
   const { pinnedTopics, pinTopics } = useTabPinnedTopics();
@@ -49,6 +49,49 @@ export default function MessageDetail(props: Props) {
   const [activeTab, setActiveTab] = createSignal<Tab>("formatted");
   const [copyFeedback, setCopyFeedback] = createSignal(false);
   const mode = () => props.detailMode ?? "detail";
+
+  const activeMessage = createMemo(() => props.overrideMessage ?? props.node?.lastMessage ?? null);
+
+  const isMonsterMq = () => {
+    const connId = activeConnectionId();
+    return connId ? getConnection(connId)?.isMonsterMq ?? false : false;
+  };
+
+  const isSubscribedToWildcard = createMemo(() => {
+    const connId = activeConnectionId();
+    if (!connId) return false;
+    const conn = getConnection(connId);
+    if (!conn) return false;
+    const cleanTopic = getCleanTopic();
+    if (!cleanTopic) return false;
+    const wildcardTopic = `${cleanTopic}/#`;
+    return conn.subscriptions.some((sub) => sub.topic === wildcardTopic);
+  });
+
+  function subscribeToWildcard() {
+    const connId = activeConnectionId();
+    if (!connId) return;
+    const cleanTopic = getCleanTopic();
+    if (!cleanTopic) return;
+    const wildcardTopic = `${cleanTopic}/#`;
+    addSubscription(connId, { topic: wildcardTopic, qos: 0 });
+    subscribeLive(wildcardTopic, 0);
+  }
+
+  function unsubscribeFromWildcard() {
+    const connId = activeConnectionId();
+    if (!connId) return;
+    const conn = getConnection(connId);
+    if (!conn) return;
+    const cleanTopic = getCleanTopic();
+    if (!cleanTopic) return;
+    const wildcardTopic = `${cleanTopic}/#`;
+    const idx = conn.subscriptions.findIndex((sub) => sub.topic === wildcardTopic);
+    if (idx !== -1) {
+      removeSubscriptionAt(connId, idx);
+      unsubscribeLive(wildcardTopic);
+    }
+  }
 
   function getDisplayTopic(): string {
     // Use the message's topic if available (table selection), otherwise use node's topic (tree selection)
@@ -77,7 +120,6 @@ export default function MessageDetail(props: Props) {
     if (props.node) publish(props.node.fullTopic, "", 1, true);
   }
 
-  const activeMessage = createMemo(() => props.overrideMessage ?? props.node?.lastMessage ?? null);
 
   const retainedTopicsBelow = createMemo(() => props.node ? collectRetainedTopics(props.node) : []);
 
@@ -220,6 +262,28 @@ export default function MessageDetail(props: Props) {
             <span class="text-xs font-mono text-slate-400 truncate max-w-[250px]" use:tooltip={getDisplayTopic()}>
               {getDisplayTopic()}
             </span>
+            <Show when={isMonsterMq()}>
+              <Show
+                when={isSubscribedToWildcard()}
+                fallback={
+                  <button
+                    class="px-2 py-0.5 text-[10px] bg-blue-600 hover:bg-blue-500 text-white rounded font-medium transition-colors shrink-0"
+                    onClick={subscribeToWildcard}
+                    use:tooltip={`Subscribe to ${getCleanTopic()}/#`}
+                  >
+                    Subscribe + #
+                  </button>
+                }
+              >
+                <button
+                  class="px-2 py-0.5 text-[10px] bg-red-600/80 hover:bg-red-500 text-white rounded font-medium transition-colors shrink-0"
+                  onClick={unsubscribeFromWildcard}
+                  use:tooltip={`Unsubscribe from ${getCleanTopic()}/#`}
+                >
+                  Unsubscribe
+                </button>
+              </Show>
+            </Show>
             <button
               class="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-300 transition-colors"
               use:tooltip="Copy topic (without connection name)"
