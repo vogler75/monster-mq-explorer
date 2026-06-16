@@ -50,7 +50,7 @@ export default function TopicRow(props: Props) {
       return "normal";
     }
 
-    if (!conn.isMonsterMq) return "normal";
+    if (!conn.isMonsterMq || !conn.monsterMqGraphqlBrowsing) return "normal";
 
     const cleanTopic = node.key.startsWith(prefix) ? node.key.slice(prefix.length) : node.key;
     if (node.key === conn.name) return "normal";
@@ -65,7 +65,9 @@ export default function TopicRow(props: Props) {
 
   const isMonsterMq = () => {
     const connId = activeConnectionId();
-    return connId ? getConnection(connId)?.isMonsterMq ?? false : false;
+    if (!connId) return false;
+    const conn = getConnection(connId);
+    return conn ? conn.isMonsterMq && conn.monsterMqGraphqlBrowsing : false;
   };
 
   const connName = () => {

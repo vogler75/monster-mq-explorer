@@ -77,7 +77,7 @@ export default function HistoryPane() {
 
       const topics = matching.map((t) => t.slice(prefix.length));
 
-      if (conn.isMonsterMq && conn.monsterMqGraphqlUrl) {
+      if (conn.isMonsterMq && conn.monsterMqGraphqlBrowsing && conn.monsterMqGraphqlUrl) {
         for (const t of matching) claimed.add(t);
         result.push({
           type: "monstermq",

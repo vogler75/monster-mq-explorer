@@ -35,6 +35,7 @@ export default function ConnectionModal() {
   const [tagPathSplit, setTagPathSplit] = createSignal(defaults().tagPathSplit ?? "::");
   const [filterInternalTags, setFilterInternalTags] = createSignal(defaults().filterInternalTags ?? false);
   const [isMonsterMq, setIsMonsterMq] = createSignal(defaults().isMonsterMq ?? false);
+  const [monsterMqGraphqlBrowsing, setMonsterMqGraphqlBrowsing] = createSignal(defaults().monsterMqGraphqlBrowsing ?? true);
   const [monsterMqGraphqlUrl, setMonsterMqGraphqlUrl] = createSignal(defaults().monsterMqGraphqlUrl ?? "");
   const [monsterMqArchiveGroup, setMonsterMqArchiveGroup] = createSignal(defaults().monsterMqArchiveGroup ?? "");
   const [archiveGroups, setArchiveGroups] = createSignal<string[]>([]);
@@ -49,7 +50,7 @@ export default function ConnectionModal() {
 
   createEffect(() => {
     const url = monsterMqGraphqlUrl();
-    if (isMonsterMq() && url) {
+    if (isMonsterMq() && monsterMqGraphqlBrowsing() && url) {
       setFetchingGroups(true);
       setFetchError(null);
       fetchArchiveGroups(url)
@@ -127,6 +128,7 @@ export default function ConnectionModal() {
       tagPathSplit: tagPathSplit(),
       filterInternalTags: filterInternalTags(),
       isMonsterMq: isMonsterMq(),
+      monsterMqGraphqlBrowsing: monsterMqGraphqlBrowsing(),
       monsterMqGraphqlUrl: monsterMqGraphqlUrl(),
       monsterMqArchiveGroup: monsterMqArchiveGroup(),
       ignoreCertErrors: ignoreCertErrors(),
@@ -370,39 +372,52 @@ export default function ConnectionModal() {
                     onInput={(e) => setMonsterMqGraphqlUrl(e.currentTarget.value)}
                   />
                 </div>
-                <div>
-                  <label class={labelClass}>Archive Group for Exploration</label>
-                  <Show
-                    when={archiveGroups().length > 0}
-                    fallback={
-                      <div class="flex items-center gap-2">
-                        <input
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    class="accent-blue-500"
+                    checked={monsterMqGraphqlBrowsing()}
+                    onChange={(e) => setMonsterMqGraphqlBrowsing(e.currentTarget.checked)}
+                  />
+                  <span class="text-xs text-slate-400">GraphQL-based Topic Browsing</span>
+                </label>
+                <Show when={monsterMqGraphqlBrowsing()}>
+                  <div class="space-y-2 pl-4 border-l border-slate-700">
+                    <div>
+                      <label class={labelClass}>Archive Group for Exploration</label>
+                      <Show
+                        when={archiveGroups().length > 0}
+                        fallback={
+                          <div class="flex items-center gap-2">
+                            <input
+                              class={inputClass}
+                              placeholder="e.g. Default"
+                              value={monsterMqArchiveGroup()}
+                              onInput={(e) => setMonsterMqArchiveGroup(e.currentTarget.value)}
+                            />
+                            <Show when={fetchingGroups()}>
+                              <span class="text-xs text-slate-500 animate-pulse">Fetching...</span>
+                            </Show>
+                          </div>
+                        }
+                      >
+                        <select
                           class={inputClass}
-                          placeholder="e.g. Default"
                           value={monsterMqArchiveGroup()}
-                          onInput={(e) => setMonsterMqArchiveGroup(e.currentTarget.value)}
-                        />
-                        <Show when={fetchingGroups()}>
-                          <span class="text-xs text-slate-500 animate-pulse">Fetching...</span>
-                        </Show>
-                      </div>
-                    }
-                  >
-                    <select
-                      class={inputClass}
-                      value={monsterMqArchiveGroup()}
-                      onChange={(e) => setMonsterMqArchiveGroup(e.currentTarget.value)}
-                    >
-                      <option value="">-- Select Archive Group --</option>
-                      <For each={archiveGroups()}>
-                        {(group) => <option value={group}>{group}</option>}
-                      </For>
-                    </select>
-                  </Show>
-                  <Show when={fetchError()}>
-                    <p class="text-xs text-red-400 mt-1">{fetchError()}</p>
-                  </Show>
-                </div>
+                          onChange={(e) => setMonsterMqArchiveGroup(e.currentTarget.value)}
+                        >
+                          <option value="">-- Select Archive Group --</option>
+                          <For each={archiveGroups()}>
+                            {(group) => <option value={group}>{group}</option>}
+                          </For>
+                        </select>
+                      </Show>
+                      <Show when={fetchError()}>
+                        <p class="text-xs text-red-400 mt-1">{fetchError()}</p>
+                      </Show>
+                    </div>
+                  </div>
+                </Show>
               </div>
             </Show>
           </Show>

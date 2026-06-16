@@ -85,6 +85,7 @@ export function useTabSelectedTopic(): () => string | null {
 export interface TabEntry {
   id: string;
   selectedTopic: () => string | null;
+  setSelectedTopic: (topic: string | null) => void;
   pinnedTopics: () => Set<string>;
   messageLog: MessageLogStore;
   chartData: ChartDataStore;
@@ -111,6 +112,17 @@ export function broadcastMessages(msgs: SerializedMessage[]) {
 export function broadcastChartMessage(topic: string, payload: Uint8Array, timestamp: number) {
   for (const tab of tabRegistry.values()) {
     tab.chartData.pushMessage(topic, payload, timestamp);
+  }
+}
+
+/** Clear selection for all tabs viewing a specific connection */
+export function clearTabStateForConnection(connectionName: string) {
+  const prefix = `${connectionName}/`;
+  for (const tab of tabRegistry.values()) {
+    const topic = tab.selectedTopic();
+    if (topic === connectionName || (topic && topic.startsWith(prefix))) {
+      tab.setSelectedTopic(null);
+    }
   }
 }
 

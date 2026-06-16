@@ -46,6 +46,7 @@ export default function DetailPane() {
   registerTab({
     id: defaultTab.id,
     selectedTopic: defaultTab.selectedTopic,
+    setSelectedTopic: defaultTab.setSelectedTopic,
     pinnedTopics: defaultTab.stores.pinnedTopics.pinnedTopics,
     messageLog: defaultTab.stores.messageLog,
     chartData: defaultTab.stores.chartData,
@@ -71,6 +72,7 @@ export default function DetailPane() {
     registerTab({
       id: tab.id,
       selectedTopic: tab.selectedTopic,
+      setSelectedTopic: tab.setSelectedTopic,
       pinnedTopics: tab.stores.pinnedTopics.pinnedTopics,
       messageLog: tab.stores.messageLog,
       chartData: tab.stores.chartData,

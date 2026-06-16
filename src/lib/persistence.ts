@@ -56,6 +56,7 @@ function normalizeConnection(input: Partial<ConnectionConfig>): ConnectionConfig
     tagPathSplit: typeof input.tagPathSplit === "string" ? input.tagPathSplit : "",
     filterInternalTags: typeof input.filterInternalTags === "boolean" ? input.filterInternalTags : false,
     isMonsterMq: typeof input.isMonsterMq === "boolean" ? input.isMonsterMq : false,
+    monsterMqGraphqlBrowsing: typeof input.monsterMqGraphqlBrowsing === "boolean" ? input.monsterMqGraphqlBrowsing : (input.isMonsterMq ?? defaults.monsterMqGraphqlBrowsing),
     monsterMqGraphqlUrl: typeof input.monsterMqGraphqlUrl === "string" ? input.monsterMqGraphqlUrl : "",
     monsterMqArchiveGroup: typeof input.monsterMqArchiveGroup === "string" ? input.monsterMqArchiveGroup : "",
     ignoreCertErrors: typeof input.ignoreCertErrors === "boolean" ? input.ignoreCertErrors : false,

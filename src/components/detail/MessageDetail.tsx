@@ -54,7 +54,9 @@ export default function MessageDetail(props: Props) {
 
   const isMonsterMq = () => {
     const connId = activeConnectionId();
-    return connId ? getConnection(connId)?.isMonsterMq ?? false : false;
+    if (!connId) return false;
+    const conn = getConnection(connId);
+    return conn ? conn.isMonsterMq && conn.monsterMqGraphqlBrowsing : false;
   };
 
   const isSubscribedToWildcard = createMemo(() => {

@@ -5,7 +5,7 @@ import type { WorkerEvent } from "./workers/mqtt.protocol";
 import { useConnections } from "./stores/connections";
 import { useTopicTree } from "./stores/topics";
 import { useUI } from "./stores/ui";
-import { broadcastMessages, broadcastChartMessage } from "./stores/tabStore";
+import { broadcastMessages, broadcastChartMessage, clearTabStateForConnection } from "./stores/tabStore";
 import { fetchArchiveGroups, fetchBrowseTopics } from "./lib/monstermq-api";
 import { getNodeByTopic } from "./lib/topic-tree";
 import { login as winccUaLogin, browseTags as winccUaBrowseTags, loginAndBrowse as winccUaBrowse } from "./lib/winccua-api";
@@ -60,8 +60,8 @@ function getOrCreateWorker(connectionId: string, type: "mqtt" | "winccua" | "win
 export default function App() {
   const { connections, connectionsLoaded, activeConnectionId, setActiveConnectionId, getConnection, removeConnection } =
     useConnections();
-  const { processBatch, addBrowsedTopics, setBrowsedChildren, topicTree } = useTopicTree();
-  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, clearConnectionState, showConnectionModal, showSubscriptionModal, showPublishPanel, setPublishFn, setSubscribeFn, setUnsubscribeFn, setDeleteConnectionFn, autoExpand, expandTopics, selectedTopic, expandedNodes } = useUI();
+  const { processBatch, addBrowsedTopics, setBrowsedChildren, topicTree, clearSubtree } = useTopicTree();
+  const { getConnectionStatus, setConnectionStatus, setArchiveGroups, setWinccToken, setTopicTagNameMap, clearConnectionState, showConnectionModal, showSubscriptionModal, showPublishPanel, setPublishFn, setSubscribeFn, setUnsubscribeFn, setDeleteConnectionFn, autoExpand, expandTopics, selectedTopic, setSelectedTopic, expandedNodes } = useUI();
 
   const [sidebarWidth, setSidebarWidth] = createSignal(320);
   const [rightPanelWidth, setRightPanelWidth] = createSignal(300);
@@ -104,6 +104,20 @@ export default function App() {
     document.body.style.userSelect = "none";
   }
 
+  function clearStateForConnection(connectionName: string) {
+    // 1. Clear subtree from the topic tree
+    clearSubtree(connectionName);
+
+    // 2. Clear global selected topic if it belongs to this connection
+    const globalSelected = selectedTopic();
+    if (globalSelected === connectionName || (globalSelected && globalSelected.startsWith(`${connectionName}/`))) {
+      setSelectedTopic(null);
+    }
+
+    // 3. Clear selected topics for any tabs displaying this connection
+    clearTabStateForConnection(connectionName);
+  }
+
   function setupWorkerListeners(w: Worker | WorkerLike, connectionId: string) {
     w.onmessage = (e: MessageEvent<WorkerEvent>) => {
       const event = e.data;
@@ -111,9 +125,14 @@ export default function App() {
         case "connected":
           setConnectionStatus(connectionId, "connected");
           break;
-        case "disconnected":
+        case "disconnected": {
           setConnectionStatus(connectionId, "disconnected");
+          const config = getConnection(connectionId);
+          if (config) {
+            clearStateForConnection(config.name);
+          }
           break;
+        }
         case "error":
           console.error(`[Worker:${connectionId}]`, event.message);
           break;
@@ -175,6 +194,10 @@ export default function App() {
         prevW.postMessage({ type: "disconnect" } as WorkerCommand);
       }
       setConnectionStatus(prevActiveId, "disconnected");
+      const prevConfig = getConnection(prevActiveId);
+      if (prevConfig) {
+        clearStateForConnection(prevConfig.name);
+      }
     }
 
     const config = getConnection(connectionId);
@@ -185,7 +208,7 @@ export default function App() {
     setConnectionStatus(connectionId, "connecting");
     setActiveConnectionId(connectionId);
     const plainConfig = JSON.parse(JSON.stringify(unwrap(config)));
-    if (plainConfig.isMonsterMq) {
+    if (plainConfig.isMonsterMq && plainConfig.monsterMqGraphqlBrowsing) {
       // Filter out root "#" subscription to prevent subscribing to the root in production
       plainConfig.subscriptions = plainConfig.subscriptions.filter(
         (sub: any) => sub.topic !== "#"
@@ -193,7 +216,7 @@ export default function App() {
     }
     const isElectronApp = !!window.mqttIpc?.graphqlProxy;
 
-    if (config.isMonsterMq && config.monsterMqGraphqlUrl) {
+    if (config.isMonsterMq && config.monsterMqGraphqlBrowsing && config.monsterMqGraphqlUrl) {
       fetchArchiveGroups(config.monsterMqGraphqlUrl)
         .then((groups) => setArchiveGroups(connectionId, groups.map((g) => g.name)))
         .catch((err) => console.error(`[MonsterMQ:${connectionId}] Failed to fetch archive groups:`, err));
@@ -331,6 +354,10 @@ export default function App() {
     const w = workers.get(id);
     if (w) w.postMessage({ type: "disconnect" } as WorkerCommand);
     setConnectionStatus(id, "disconnected");
+    const config = getConnection(id);
+    if (config) {
+      clearStateForConnection(config.name);
+    }
   }
 
   function publish(topic: string, payload: string, qos: 0 | 1 | 2, retain: boolean) {
@@ -355,6 +382,10 @@ export default function App() {
       w.terminate();
       workers.delete(connectionId);
       workerIsIpc.delete(connectionId);
+    }
+    const config = getConnection(connectionId);
+    if (config) {
+      clearStateForConnection(config.name);
     }
     clearConnectionState(connectionId);
     removeConnection(connectionId);
@@ -398,7 +429,7 @@ export default function App() {
     if (status !== "connected") return;
 
     const config = getConnection(connId);
-    if (!config || !config.isMonsterMq || !config.monsterMqGraphqlUrl) return;
+    if (!config || !config.isMonsterMq || !config.monsterMqGraphqlBrowsing || !config.monsterMqGraphqlUrl) return;
 
     const archiveGroup = config.monsterMqArchiveGroup || "Default";
     const expanded = expandedNodes();

@@ -18,6 +18,8 @@ export interface ConnectionConfig {
   filterInternalTags: boolean;
   /** Whether this MQTT broker is a MonsterMQ instance with GraphQL API */
   isMonsterMq: boolean;
+  /** Whether GraphQL based topic browsing is enabled for this MonsterMQ broker */
+  monsterMqGraphqlBrowsing: boolean;
   /** GraphQL endpoint URL for MonsterMQ API (e.g. "https://broker:4000/graphql") */
   monsterMqGraphqlUrl: string;
   /** Selected archive group for MonsterMQ data exploration */
@@ -83,6 +85,7 @@ export function createDefaultConnection(): ConnectionConfig {
     tagPathSplit: "",
     filterInternalTags: false,
     isMonsterMq: false,
+    monsterMqGraphqlBrowsing: true,
     monsterMqGraphqlUrl: "",
     monsterMqArchiveGroup: "",
     ignoreCertErrors: false,
@@ -105,6 +108,7 @@ export function createDefaultWinCCOAConnection(): ConnectionConfig {
     tagPathSplit: "_,.",
     filterInternalTags: false,
     isMonsterMq: false,
+    monsterMqGraphqlBrowsing: false,
     monsterMqGraphqlUrl: "",
     monsterMqArchiveGroup: "",
     ignoreCertErrors: false,
@@ -127,6 +131,7 @@ export function createDefaultWinCCUAConnection(): ConnectionConfig {
     tagPathSplit: "_,.",
     filterInternalTags: true,
     isMonsterMq: false,
+    monsterMqGraphqlBrowsing: false,
     monsterMqGraphqlUrl: "",
     monsterMqArchiveGroup: "",
     ignoreCertErrors: false,
