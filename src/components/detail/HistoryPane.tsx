@@ -35,6 +35,7 @@ interface MonsterMqGroup {
   connectionName: string;
   graphqlUrl: string;
   archiveGroups: string[];
+  configuredArchiveGroup: string;
   topics: string[]; // cleaned (prefix stripped)
 }
 
@@ -77,7 +78,7 @@ export default function HistoryPane() {
 
       const topics = matching.map((t) => t.slice(prefix.length));
 
-      if (conn.isMonsterMq && conn.monsterMqGraphqlBrowsing && conn.monsterMqGraphqlUrl) {
+      if (conn.isMonsterMq && conn.monsterMqGraphqlUrl) {
         for (const t of matching) claimed.add(t);
         result.push({
           type: "monstermq",
@@ -85,6 +86,7 @@ export default function HistoryPane() {
           connectionName: conn.name,
           graphqlUrl: conn.monsterMqGraphqlUrl,
           archiveGroups: getArchiveGroups(conn.id),
+          configuredArchiveGroup: conn.monsterMqArchiveGroup || "Default",
           topics,
         });
       } else if (conn.connectionType === "winccua") {
@@ -165,8 +167,8 @@ export default function HistoryPane() {
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
 
-  function getSelectedGroup(connId: string, fallbackGroups: string[]): string {
-    return selectedGroups().get(connId) ?? fallbackGroups[0] ?? "Default";
+  function getSelectedGroup(connId: string, configuredGroup: string): string {
+    return selectedGroups().get(connId) ?? configuredGroup;
   }
 
   function setSelectedGroup(connId: string, group: string) {
@@ -206,7 +208,7 @@ export default function HistoryPane() {
       await Promise.all(
         groups.map(async (g) => {
           if (g.type === "monstermq") {
-            const group = getSelectedGroup(g.connectionId, g.archiveGroups);
+            const group = getSelectedGroup(g.connectionId, (g as MonsterMqGroup).configuredArchiveGroup);
             await Promise.all(
               g.topics.map(async (topic) => {
                 const msgs = await fetchArchivedMessages(g.graphqlUrl, {
@@ -396,10 +398,16 @@ export default function HistoryPane() {
                   <span class="text-xs text-slate-400 font-medium">{group.connectionName}</span>
                   <select
                     class={inputClass + " w-32"}
-                    value={getSelectedGroup(group.connectionId, (group as MonsterMqGroup).archiveGroups)}
+                    value={getSelectedGroup(group.connectionId, (group as MonsterMqGroup).configuredArchiveGroup)}
                     onChange={(e) => setSelectedGroup(group.connectionId, e.currentTarget.value)}
                   >
-                    <For each={(group as MonsterMqGroup).archiveGroups}>
+                    <For each={(() => {
+                      const fetched = (group as MonsterMqGroup).archiveGroups;
+                      const conf = (group as MonsterMqGroup).configuredArchiveGroup;
+                      if (fetched.length === 0) return [conf];
+                      if (!fetched.includes(conf)) return [conf, ...fetched];
+                      return fetched;
+                    })()}>
                       {(ag) => <option value={ag}>{ag}</option>}
                     </For>
                   </select>

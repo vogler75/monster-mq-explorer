@@ -208,15 +208,9 @@ export default function App() {
     setConnectionStatus(connectionId, "connecting");
     setActiveConnectionId(connectionId);
     const plainConfig = JSON.parse(JSON.stringify(unwrap(config)));
-    if (plainConfig.isMonsterMq && plainConfig.monsterMqGraphqlBrowsing) {
-      // Filter out root "#" subscription to prevent subscribing to the root in production
-      plainConfig.subscriptions = plainConfig.subscriptions.filter(
-        (sub: any) => sub.topic !== "#"
-      );
-    }
     const isElectronApp = !!window.mqttIpc?.graphqlProxy;
 
-    if (config.isMonsterMq && config.monsterMqGraphqlBrowsing && config.monsterMqGraphqlUrl) {
+    if (config.isMonsterMq && config.monsterMqGraphqlUrl) {
       fetchArchiveGroups(config.monsterMqGraphqlUrl)
         .then((groups) => setArchiveGroups(connectionId, groups.map((g) => g.name)))
         .catch((err) => console.error(`[MonsterMQ:${connectionId}] Failed to fetch archive groups:`, err));
