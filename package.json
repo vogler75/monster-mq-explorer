@@ -73,7 +73,7 @@
       ]
     },
     "win": {
-      "icon": "public/icons/icon-512.png",
+      "icon": "public/icons/icon.ico",
       "artifactName": "${productName} Setup.${ext}",
       "target": [
         {
