@@ -4,6 +4,7 @@ import { useTopicTree } from "../../stores/topics";
 import { useUI } from "../../stores/ui";
 import { useConnections } from "../../stores/connections";
 import { flattenVisibleNodes, flattenFilteredNodes, collectAllNodePaths, hasRetainedInTree, getNodeByTopic, collectRetainedTopics } from "../../lib/topic-tree";
+import { stripConnectionPrefix } from "../../lib/connection-topic";
 import TopicRow from "./TopicRow";
 import { tooltip } from "../ui/tooltip";
 
@@ -22,9 +23,8 @@ export default function TopicTree() {
     if (!node) return;
     const connId = activeConnectionId();
     const conn = connId ? getConnection(connId) : null;
-    const prefix = conn ? `${conn.name}/` : "";
     for (const t of collectRetainedTopics(node)) {
-      const cleanTopic = prefix && t.startsWith(prefix) ? t.slice(prefix.length) : t;
+      const cleanTopic = conn ? stripConnectionPrefix(t, conn.name) : t;
       publish(cleanTopic, "", 0, true);
     }
   }
@@ -159,7 +159,7 @@ export default function TopicTree() {
             class="p-1 rounded shrink-0 transition-colors"
             classList={{
               "text-slate-500 hover:text-slate-300 cursor-not-allowed opacity-50": !selectedTopic(),
-              "text-slate-400 hover:text-slate-200": selectedTopic(),
+              "text-slate-400 hover:text-slate-200": !!selectedTopic(),
             }}
             disabled={!selectedTopic()}
             onClick={() => {

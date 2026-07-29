@@ -74,8 +74,6 @@ export async function queryDpGetPeriod(
     }`,
     variables: { startTime, endTime, dpeNames: queryDpes },
   }, token, config.ignoreCertErrors) as { data?: { api?: { dp?: { getPeriod?: unknown } } }; errors?: unknown[] };
-  console.log("[WinCC OA] getPeriod request:", { dpeNames: queryDpes, startTime, endTime });
-  console.log("[WinCC OA] getPeriod response:", JSON.stringify(result, null, 2));
   if (result.errors) throw new Error(`Query failed: ${JSON.stringify(result.errors)}`);
 
   // getPeriod returns an array of results per DPE, each with timestamps[] and values[]

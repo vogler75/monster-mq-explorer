@@ -23,6 +23,7 @@ let activeTagPathSplitters: string[] = [":"];
 let pendingMessages: SerializedMessage[] = [];
 let flushInterval: ReturnType<typeof setInterval> | null = null;
 const encoder = new TextEncoder();
+let connectionGeneration = 0;
 
 let subIdCounter = 0;
 
@@ -112,7 +113,8 @@ async function graphqlPost(url: string, body: object, token?: string, ignoreCert
   return res.json();
 }
 
-async function connectToWinCCOA(config: ConnectionConfig, prefetchedToken?: string) {
+async function connectToWinCCOA(config: ConnectionConfig, generation: number, prefetchedToken?: string) {
+  const isCurrent = () => generation === connectionGeneration;
   activeTagPathSplitters = [...new Set([":"].concat([...config.tagPathSplit]))];
   const http = httpUrl(config);
 
@@ -124,12 +126,13 @@ async function connectToWinCCOA(config: ConnectionConfig, prefetchedToken?: stri
       query: `mutation Login($username: String!, $password: String!) { login(username: $username, password: $password) { token } }`,
       variables: { username: config.username, password: config.password },
     };
-    console.log("[WinCC OA] Login request →", http, loginBody);
+    console.log("[WinCC OA] Login request →", http);
     let result: { data?: { login?: { token?: string } }; errors?: unknown[] };
     try {
       result = await graphqlPost(http, loginBody, undefined, config.ignoreCertErrors) as typeof result;
-      console.log("[WinCC OA] Login response ←", JSON.stringify(result));
+      if (!isCurrent()) return;
     } catch (err) {
+      if (!isCurrent()) return;
       console.error("[WinCC OA] Login request failed:", err);
       self.postMessage({ type: "error", message: `Login request failed: ${err}` } as WorkerEvent);
       self.postMessage({ type: "disconnected" } as WorkerEvent);
@@ -182,12 +185,17 @@ async function connectToWinCCOA(config: ConnectionConfig, prefetchedToken?: stri
   const ws = wsUrl(config);
   console.log("[WinCC OA] WebSocket URL:", ws);
 
+  if (!isCurrent()) return;
   const socket = new WebSocket(ws, "graphql-transport-ws");
   activeWs = socket;
   subIdCounter = 0;
   activeSubIds = [];
 
   socket.onopen = () => {
+    if (!isCurrent() || activeWs !== socket) {
+      socket.close();
+      return;
+    }
     console.log("[WinCC OA] WS open — sending connection_init");
     wsSend(socket, {
       type: "connection_init",
@@ -196,6 +204,7 @@ async function connectToWinCCOA(config: ConnectionConfig, prefetchedToken?: stri
   };
 
   socket.onmessage = (event: MessageEvent) => {
+    if (!isCurrent() || activeWs !== socket) return;
     let msg: { type: string; id?: string; payload?: unknown };
     try {
       msg = JSON.parse(event.data as string);
@@ -281,14 +290,15 @@ async function connectToWinCCOA(config: ConnectionConfig, prefetchedToken?: stri
   };
 
   socket.onerror = (event) => {
+    if (!isCurrent() || activeWs !== socket) return;
     console.error("[WinCC OA] WS error:", event);
     self.postMessage({ type: "error", message: "WebSocket error" } as WorkerEvent);
   };
 
   socket.onclose = (event) => {
     console.log("[WinCC OA] WS closed — code:", event.code, "reason:", event.reason);
-    stopFlushing();
-    if (activeWs === socket) {
+    if (isCurrent() && activeWs === socket) {
+      stopFlushing();
       activeWs = null;
       self.postMessage({ type: "disconnected" } as WorkerEvent);
     }
@@ -316,10 +326,12 @@ self.onmessage = (e: MessageEvent<WorkerCommand>) => {
   const cmd = e.data;
   switch (cmd.type) {
     case "connect":
+      connectionGeneration += 1;
       disconnectFromWinCCOA();
-      connectToWinCCOA(cmd.config, cmd.token);
+      void connectToWinCCOA(cmd.config, connectionGeneration, cmd.token);
       break;
     case "disconnect":
+      connectionGeneration += 1;
       disconnectFromWinCCOA();
       self.postMessage({ type: "disconnected" } as WorkerEvent);
       break;

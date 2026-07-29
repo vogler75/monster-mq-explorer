@@ -12,7 +12,7 @@ import { tooltip } from "../ui/tooltip";
 import { createEffect } from "solid-js";
 
 export default function ConnectionModal() {
-  const { addConnection, updateConnection, getConnection } = useConnections();
+  const { addConnection, updateConnection, getConnection, connections } = useConnections();
   const { setShowConnectionModal, editingConnectionId } = useUI();
 
   const isEditing = () => editingConnectionId() !== null;
@@ -43,6 +43,7 @@ export default function ConnectionModal() {
   const [fetchError, setFetchError] = createSignal<string | null>(null);
   const [ignoreCertErrors, setIgnoreCertErrors] = createSignal(defaults().ignoreCertErrors ?? false);
   const [showTagBrowser, setShowTagBrowser] = createSignal(false);
+  const [validationError, setValidationError] = createSignal<string | null>(null);
   const [expandedSubIndex, setExpandedSubIndex] = createSignal<number | null>(null);
   const [subscriptions, setSubscriptions] = createStore<Subscription[]>([
     ...defaults().subscriptions,
@@ -53,7 +54,7 @@ export default function ConnectionModal() {
     if (isMonsterMq() && monsterMqGraphqlBrowsing() && url) {
       setFetchingGroups(true);
       setFetchError(null);
-      fetchArchiveGroups(url)
+      fetchArchiveGroups(url, ignoreCertErrors())
         .then((groups) => {
           setArchiveGroups(groups.map((g) => g.name));
         })
@@ -115,8 +116,24 @@ export default function ConnectionModal() {
   }
 
   function handleSave() {
+    const trimmedName = name().trim();
+    if (!trimmedName) {
+      setValidationError("Connection name is required.");
+      return;
+    }
+    const normalizedName = trimmedName.toLocaleLowerCase();
+    const duplicate = connections.some(
+      (connection) =>
+        connection.id !== editingConnectionId() &&
+        connection.name.trim().toLocaleLowerCase() === normalizedName,
+    );
+    if (duplicate) {
+      setValidationError("Connection names must be unique.");
+      return;
+    }
+    setValidationError(null);
     const config: Partial<ConnectionConfig> = {
-      name: name(),
+      name: trimmedName,
       connectionType: connectionType(),
       host: host(),
       port: port(),
@@ -180,7 +197,10 @@ export default function ConnectionModal() {
           </h2>
         </div>
 
-        <div class="p-4 space-y-3">
+          <div class="p-4 space-y-3">
+          <Show when={validationError()}>
+            {(message) => <div class="text-xs text-red-400">{message()}</div>}
+          </Show>
           {/* Connection Type */}
           <div>
             <label class={labelClass}>Connection Type</label>

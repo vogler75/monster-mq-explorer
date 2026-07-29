@@ -9,10 +9,22 @@ export interface MonsterMqArchivedMessage {
   qos: number;
 }
 
-async function graphqlPost(url: string, body: object): Promise<any> {
-  const res = await fetch(url, {
+async function graphqlPost(url: string, body: object, ignoreCertErrors = false): Promise<any> {
+  if (typeof __ELECTRON__ !== "undefined" && __ELECTRON__ && window.mqttIpc?.graphqlProxy) {
+    const result = await window.mqttIpc.graphqlProxy({ url, body, ignoreCertErrors });
+    if (typeof result === "object" && result !== null && "errors" in result && Array.isArray(result.errors) && result.errors.length) {
+      throw new Error(String(result.errors[0]?.message ?? "GraphQL request failed"));
+    }
+    return (result as { data?: unknown }).data ?? result;
+  }
+
+  const res = await fetch("/api/winccua-proxy", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Wincc-Target": url,
+      ...(ignoreCertErrors ? { "X-Ignore-Cert-Errors": "1" } : {}),
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -21,10 +33,10 @@ async function graphqlPost(url: string, body: object): Promise<any> {
   return json.data;
 }
 
-export async function fetchArchiveGroups(graphqlUrl: string): Promise<MonsterMqArchiveGroup[]> {
+export async function fetchArchiveGroups(graphqlUrl: string, ignoreCertErrors = false): Promise<MonsterMqArchiveGroup[]> {
   const data = await graphqlPost(graphqlUrl, {
     query: `{ archiveGroups(enabled: true) { name } }`,
-  });
+  }, ignoreCertErrors);
   return data.archiveGroups ?? [];
 }
 
@@ -36,6 +48,7 @@ export async function fetchArchivedMessages(
     endTime: string;
     archiveGroup: string;
     limit?: number;
+    ignoreCertErrors?: boolean;
   },
 ): Promise<MonsterMqArchivedMessage[]> {
   const data = await graphqlPost(graphqlUrl, {
@@ -54,7 +67,7 @@ export async function fetchArchivedMessages(
       archiveGroup: opts.archiveGroup,
       limit: opts.limit ?? 1000,
     },
-  });
+  }, opts.ignoreCertErrors);
   return data.archivedMessages ?? [];
 }
 
@@ -71,6 +84,7 @@ export async function fetchBrowseTopics(
   graphqlUrl: string,
   topic: string,
   archiveGroup: string,
+  ignoreCertErrors = false,
 ): Promise<MonsterMqBrowsedTopic[]> {
   const data = await graphqlPost(graphqlUrl, {
     query: `query BrowseTopics($topic: String!, $archiveGroup: String) {
@@ -87,6 +101,7 @@ export async function fetchBrowseTopics(
       topic,
       archiveGroup,
     },
-  });
+  }, ignoreCertErrors);
   return data.browseTopics ?? [];
 }
+declare const __ELECTRON__: boolean | undefined;

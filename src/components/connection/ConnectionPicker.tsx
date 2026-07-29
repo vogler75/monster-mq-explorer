@@ -45,7 +45,8 @@ export default function ConnectionPicker(props: Props) {
 
   function handleExport() {
     clearConnectionImportError();
-    const blob = new Blob([exportConnections()], { type: "application/json" });
+    const includePasswords = window.confirm("Include saved passwords in this export? Keep the file secure if you do.");
+    const blob = new Blob([exportConnections(includePasswords)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -59,6 +60,14 @@ export default function ConnectionPicker(props: Props) {
   function handleClickOutside(e: MouseEvent) {
     const target = e.target as HTMLElement;
     if (!target.closest("[data-connection-picker]")) props.onClose();
+  }
+
+  function selectConnection(connectionId: string) {
+    const currentId = activeConnectionId();
+    if (currentId && currentId !== connectionId && getConnectionStatus(currentId) !== "disconnected") {
+      props.onDisconnect();
+    }
+    setActiveConnectionId(connectionId);
   }
 
   // Defer so the triggering click doesn't immediately close
@@ -115,7 +124,7 @@ export default function ConnectionPicker(props: Props) {
                 "border-t border-blue-500": dropIndex() === index() && dragIndex() !== null && dragIndex()! > index(),
               }}
               onClick={() => {
-                setActiveConnectionId(conn.id);
+                selectConnection(conn.id);
               }}
             >
               {/* Drag handle */}
@@ -169,7 +178,6 @@ export default function ConnectionPicker(props: Props) {
                     class="p-0.5 text-green-500 hover:text-green-400"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setActiveConnectionId(conn.id);
                       props.onConnect(conn.id);
                       props.onClose();
                     }}

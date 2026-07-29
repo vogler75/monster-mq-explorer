@@ -1,13 +1,15 @@
 import mqtt from "mqtt";
 import type { WorkerCommand, WorkerEvent, SerializedMessage } from "./mqtt.protocol";
+import type { Subscription } from "../types/mqtt";
 
 let client: mqtt.MqttClient | null = null;
 let pendingMessages: SerializedMessage[] = [];
 let flushScheduled = false;
+let subscriptions: Subscription[] = [];
 
 function post(event: WorkerEvent, transferables?: Transferable[]) {
   if (transferables) {
-    self.postMessage(event, transferables);
+    self.postMessage(event, { transfer: transferables });
   } else {
     self.postMessage(event);
   }
@@ -38,11 +40,12 @@ function handleConnect(config: WorkerCommand & { type: "connect" }) {
     client = null;
   }
 
+  subscriptions = config.config.subscriptions.map((sub) => ({ ...sub }));
   const { host, port, protocol, path, username, password, clientId } =
     config.config;
   const url = `${protocol}://${host}:${port}${path}`;
 
-  client = mqtt.connect(url, {
+  const nextClient = mqtt.connect(url, {
     clientId,
     username: username || undefined,
     password: password || undefined,
@@ -51,12 +54,14 @@ function handleConnect(config: WorkerCommand & { type: "connect" }) {
     reconnectPeriod: 5000,
     connectTimeout: 10000,
   });
+  client = nextClient;
 
-  client.on("connect", () => {
+  nextClient.on("connect", () => {
+    if (client !== nextClient) return;
     post({ type: "connected" });
-    // Subscribe to all configured subscriptions
-    for (const sub of config.config.subscriptions) {
-      client!.subscribe(sub.topic, { qos: sub.qos }, (err) => {
+    // Use the live subscription set so edits survive reconnects.
+    for (const sub of subscriptions) {
+      nextClient.subscribe(sub.topic, { qos: sub.qos }, (err) => {
         if (err) {
           post({ type: "error", message: `Subscribe failed: ${sub.topic}: ${err.message}` });
         } else {
@@ -66,7 +71,8 @@ function handleConnect(config: WorkerCommand & { type: "connect" }) {
     }
   });
 
-  client.on("message", (topic, payload, packet) => {
+  nextClient.on("message", (topic, payload, packet) => {
+    if (client !== nextClient) return;
     pendingMessages.push({
       topic,
       payload: new Uint8Array(payload),
@@ -77,15 +83,18 @@ function handleConnect(config: WorkerCommand & { type: "connect" }) {
     scheduleFlush();
   });
 
-  client.on("error", (err) => {
+  nextClient.on("error", (err) => {
+    if (client !== nextClient) return;
     post({ type: "error", message: err.message });
   });
 
-  client.on("close", () => {
+  nextClient.on("close", () => {
+    if (client !== nextClient) return;
     post({ type: "disconnected" });
   });
 
-  client.on("offline", () => {
+  nextClient.on("offline", () => {
+    if (client !== nextClient) return;
     post({ type: "disconnected", reason: "offline" });
   });
 }
@@ -103,9 +112,14 @@ self.onmessage = (e: MessageEvent<WorkerCommand>) => {
         client.end(true);
         client = null;
       }
+      subscriptions = [];
       break;
 
     case "subscribe":
+      subscriptions = [
+        ...subscriptions.filter((sub) => sub.topic !== cmd.topic),
+        { topic: cmd.topic, qos: cmd.qos },
+      ];
       if (client) {
         client.subscribe(cmd.topic, { qos: cmd.qos }, (err) => {
           if (err) {
@@ -118,6 +132,7 @@ self.onmessage = (e: MessageEvent<WorkerCommand>) => {
       break;
 
     case "unsubscribe":
+      subscriptions = subscriptions.filter((sub) => sub.topic !== cmd.topic);
       if (client) {
         client.unsubscribe(cmd.topic);
       }

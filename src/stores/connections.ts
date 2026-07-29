@@ -137,9 +137,9 @@ export function useConnections() {
       }
     },
 
-    exportConnections() {
+    exportConnections(includePasswords = false) {
       resetImportError();
-      return exportConnectionsToJson([...connections]);
+      return exportConnectionsToJson([...connections], includePasswords);
     },
 
     moveConnection(fromIndex: number, toIndex: number) {

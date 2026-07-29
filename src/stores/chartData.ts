@@ -263,9 +263,13 @@ export function createChartDataStore() {
 
   function clearAll() {
     seriesData = {};
-    topicConfigs = {};
+    // Keep topic configurations: chartActive remains true and incoming messages
+    // must be able to allocate and append to the existing pinned series.
+    for (const topic of Object.keys(topicConfigs)) {
+      for (const key of seriesKeysForTopic(topic)) allocSeries(key);
+    }
     setSeriesVersion(0);
-    setConfigVersion(0);
+    setConfigVersion((v) => v + 1);
   }
 
   function setMaxPointsSafe(newMax: number) {

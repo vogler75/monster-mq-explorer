@@ -47,18 +47,35 @@ app.on("certificate-error", (event, _webContents, url, _error, _cert, callback) 
   callback(false);
 });
 
-ipcMain.handle("ignore-cert-hosts", (_event, hosts) => {
+function assertRenderer(event) {
+  if (!mainWindow || event.sender !== mainWindow.webContents) {
+    throw new Error("Unexpected IPC sender");
+  }
+}
+
+ipcMain.handle("ignore-cert-hosts", (event, hosts) => {
+  assertRenderer(event);
   ignoreCertHosts.clear();
-  for (const h of hosts) ignoreCertHosts.add(h);
+  for (const h of hosts) {
+    if (typeof h === "string" && h) ignoreCertHosts.add(h);
+  }
   applyCertVerifyProc();
 });
 
 // ---------- GraphQL proxy for WinCC UA/OA ----------
 // Routes HTTP requests through Node.js, bypassing Chromium's network stack
 // (avoids HSTS upgrades and Web Worker cert-verify limitations).
-ipcMain.handle("graphql-proxy", (_event, { url, body, token, ignoreCertErrors }) => {
+ipcMain.handle("graphql-proxy", (event, { url, body, token, ignoreCertErrors }) => {
+  assertRenderer(event);
   return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
+    let parsed;
+    try {
+      parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("Only HTTP(S) URLs are allowed");
+    } catch (error) {
+      reject(error);
+      return;
+    }
     const isHttps = parsed.protocol === "https:";
     const mod = isHttps ? require("https") : require("http");
     const headers = { "Content-Type": "application/json" };
@@ -95,7 +112,7 @@ ipcMain.handle("graphql-proxy", (_event, { url, body, token, ignoreCertErrors })
 });
 
 // ---------- TCP MQTT connections managed in main process ----------
-const tcpClients = new Map(); // connectionId -> { client, pendingMessages, flushScheduled }
+const tcpClients = new Map(); // connectionId -> { client, pendingMessages, flushScheduled, subscriptions }
 
 function sendToRenderer(connectionId, event) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -154,14 +171,19 @@ function handleTcpConnect(connectionId, config) {
     opts.rejectUnauthorized = false;
   }
 
-  const client = mqtt.connect(url, opts);
-
-  const state = { client, pendingMessages: [], flushScheduled: false };
+  const state = {
+    client: null,
+    pendingMessages: [],
+    flushScheduled: false,
+    subscriptions: config.subscriptions.map((sub) => ({ ...sub })),
+  };
   tcpClients.set(connectionId, state);
+  const client = mqtt.connect(url, opts);
+  state.client = client;
 
   client.on("connect", () => {
     sendToRenderer(connectionId, { type: "connected" });
-    for (const sub of config.subscriptions) {
+    for (const sub of state.subscriptions) {
       client.subscribe(sub.topic, { qos: sub.qos }, (err) => {
         if (err) {
           sendToRenderer(connectionId, { type: "error", message: `Subscribe failed: ${sub.topic}: ${err.message}` });
@@ -211,6 +233,10 @@ function handleTcpCommand(connectionId, cmd) {
       tcpClients.delete(connectionId);
       break;
     case "subscribe":
+      state.subscriptions = [
+        ...state.subscriptions.filter((sub) => sub.topic !== cmd.topic),
+        { topic: cmd.topic, qos: cmd.qos },
+      ];
       state.client.subscribe(cmd.topic, { qos: cmd.qos }, (err) => {
         if (err) {
           sendToRenderer(connectionId, { type: "error", message: `Subscribe failed: ${err.message}` });
@@ -220,6 +246,7 @@ function handleTcpCommand(connectionId, cmd) {
       });
       break;
     case "unsubscribe":
+      state.subscriptions = state.subscriptions.filter((sub) => sub.topic !== cmd.topic);
       state.client.unsubscribe(cmd.topic);
       break;
     case "publish":
@@ -241,13 +268,13 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: `Monster MQTT Explorer v${pkg.version}`,
-    icon: path.join(__dirname, "../public/icons/icon.ico"),
+    icon: path.join(__dirname, "../dist/icons/icon.ico"),
     backgroundColor: "#0f172a",
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false, // preload needs require('electron')
-      webSecurity: false, // allow cross-origin fetch to WinCC UA / other local servers
+      webSecurity: true,
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
@@ -256,7 +283,12 @@ function createWindow() {
 
   // Open external links in the OS browser, not inside the app
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        void shell.openExternal(url);
+      }
+    } catch { /* reject malformed URLs */ }
     return { action: "deny" };
   });
 

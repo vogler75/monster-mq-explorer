@@ -199,6 +199,7 @@ export default function SubscriptionModal() {
             path: activeConn()!.path,
             username: activeConn()!.username,
             password: activeConn()!.password,
+            ignoreCertErrors: activeConn()!.ignoreCertErrors,
           }}
           browseFn={activeConn()?.connectionType === "winccoa" ? winccoaBrowse : undefined}
           onAdd={(tags) => {

@@ -23,6 +23,21 @@ import { TooltipOverlay } from "./components/ui/TooltipOverlay";
 const workers = new Map<string, Worker | WorkerLike>();
 // Track whether each connection uses IPC so we can detect protocol switches
 const workerIsIpc = new Map<string, boolean>();
+const connectionAttempts = new Map<string, number>();
+
+function beginConnectionAttempt(connectionId: string): number {
+  const next = (connectionAttempts.get(connectionId) ?? 0) + 1;
+  connectionAttempts.set(connectionId, next);
+  return next;
+}
+
+function invalidateConnectionAttempt(connectionId: string) {
+  beginConnectionAttempt(connectionId);
+}
+
+function isCurrentConnectionAttempt(connectionId: string, attempt: number): boolean {
+  return connectionAttempts.get(connectionId) === attempt;
+}
 
 function isTcpProtocol(protocol: string): boolean {
   return protocol === "mqtt" || protocol === "mqtts";
@@ -171,9 +186,14 @@ export default function App() {
    *  (so callers can await before opening TLS connections). */
   async function syncIgnoreCertHosts() {
     if (!window.mqttIpc?.setIgnoreCertHosts) return;
-    const hosts = connections
-      .filter((c) => c.ignoreCertErrors)
-      .map((c) => c.host);
+    const hosts = connections.flatMap((connection) => {
+      if (!connection.ignoreCertErrors) return [];
+      const values = [connection.host];
+      if (connection.monsterMqGraphqlUrl) {
+        try { values.push(new URL(connection.monsterMqGraphqlUrl).hostname); } catch { /* invalid URLs are handled by requests */ }
+      }
+      return values;
+    });
     await window.mqttIpc.setIgnoreCertHosts(hosts);
   }
 
@@ -187,22 +207,22 @@ export default function App() {
   });
 
   async function connect(connectionId: string) {
-    const prevActiveId = activeConnectionId();
-    if (prevActiveId && prevActiveId !== connectionId) {
-      const prevW = workers.get(prevActiveId);
-      if (prevW) {
-        prevW.postMessage({ type: "disconnect" } as WorkerCommand);
-      }
-      setConnectionStatus(prevActiveId, "disconnected");
-      const prevConfig = getConnection(prevActiveId);
-      if (prevConfig) {
-        clearStateForConnection(prevConfig.name);
-      }
+    const attempt = beginConnectionAttempt(connectionId);
+    // Explorer deliberately has one active connection. Stop every live worker,
+    // rather than relying on the UI's currently selected connection ID.
+    for (const [id, worker] of workers) {
+      if (id === connectionId || getConnectionStatus(id) === "disconnected") continue;
+      invalidateConnectionAttempt(id);
+      worker.postMessage({ type: "disconnect" } as WorkerCommand);
+      setConnectionStatus(id, "disconnected");
+      const previousConfig = getConnection(id);
+      if (previousConfig) clearStateForConnection(previousConfig.name);
     }
 
     const config = getConnection(connectionId);
     if (!config) return;
     await syncIgnoreCertHosts();
+    if (!isCurrentConnectionAttempt(connectionId, attempt)) return;
     const w = getOrCreateWorker(connectionId, config.connectionType, config.protocol);
     setupWorkerListeners(w, connectionId);
     setConnectionStatus(connectionId, "connecting");
@@ -211,8 +231,12 @@ export default function App() {
     const isElectronApp = !!window.mqttIpc?.graphqlProxy;
 
     if (config.isMonsterMq && config.monsterMqGraphqlUrl) {
-      fetchArchiveGroups(config.monsterMqGraphqlUrl)
-        .then((groups) => setArchiveGroups(connectionId, groups.map((g) => g.name)))
+      fetchArchiveGroups(config.monsterMqGraphqlUrl, config.ignoreCertErrors)
+        .then((groups) => {
+          if (isCurrentConnectionAttempt(connectionId, attempt)) {
+            setArchiveGroups(connectionId, groups.map((g) => g.name));
+          }
+        })
         .catch((err) => console.error(`[MonsterMQ:${connectionId}] Failed to fetch archive groups:`, err));
     }
 
@@ -238,11 +262,13 @@ export default function App() {
         (async () => {
           try {
             const token = await winccUaLogin(browseConfig);
+            if (!isCurrentConnectionAttempt(connectionId, attempt) || activeConnectionId() !== connectionId) return;
             if (token) setWinccToken(connectionId, token);
 
             let browsedTags: string[] = [];
             if (nameFilters.length > 0) {
               browsedTags = await winccUaBrowseTags(browseConfig, nameFilters, token);
+              if (!isCurrentConnectionAttempt(connectionId, attempt) || activeConnectionId() !== connectionId) return;
             }
             let allTags = [...explicitTags, ...browsedTags];
             if (config.filterInternalTags) {
@@ -252,8 +278,11 @@ export default function App() {
             for (const tag of allTags) mapping.set(tagNameToTopic(tag), tag);
             setTopicTagNameMap(connectionId, mapping);
 
-            w.postMessage({ type: "connect", config: plainConfig, token, tags: allTags } as WorkerCommand);
+            if (isCurrentConnectionAttempt(connectionId, attempt) && activeConnectionId() === connectionId) {
+              w.postMessage({ type: "connect", config: plainConfig, token, tags: allTags } as WorkerCommand);
+            }
           } catch (err) {
+            if (!isCurrentConnectionAttempt(connectionId, attempt)) return;
             console.error(`[WinCC UA:${connectionId}] Pre-fetch failed:`, err);
             setConnectionStatus(connectionId, "disconnected");
           }
@@ -264,10 +293,12 @@ export default function App() {
         (async () => {
           try {
             const token = await winccUaLogin(browseConfig);
+            if (!isCurrentConnectionAttempt(connectionId, attempt)) return;
             if (token) setWinccToken(connectionId, token);
             let browsedTags: string[] = [];
             if (nameFilters.length > 0) {
               browsedTags = await winccUaBrowse(browseConfig, nameFilters);
+              if (!isCurrentConnectionAttempt(connectionId, attempt)) return;
             }
             const allTags = [...explicitTags, ...browsedTags];
             const mapping = new Map<string, string>();
@@ -300,19 +331,24 @@ export default function App() {
         (async () => {
           try {
             const token = await winccOaLogin(browseConfig);
+            if (!isCurrentConnectionAttempt(connectionId, attempt) || activeConnectionId() !== connectionId) return;
             if (token) setWinccToken(connectionId, token);
 
             let browsedTags: string[] = [];
             if (nameFilters.length > 0) {
               browsedTags = await winccOaBrowse(browseConfig, nameFilters);
+              if (!isCurrentConnectionAttempt(connectionId, attempt) || activeConnectionId() !== connectionId) return;
             }
             const allTags = [...explicitTags, ...browsedTags];
             const mapping = new Map<string, string>();
             for (const tag of allTags) mapping.set(oaTagNameToTopic(tag), tag);
             setTopicTagNameMap(connectionId, mapping);
 
-            w.postMessage({ type: "connect", config: plainConfig, token } as WorkerCommand);
+            if (isCurrentConnectionAttempt(connectionId, attempt) && activeConnectionId() === connectionId) {
+              w.postMessage({ type: "connect", config: plainConfig, token } as WorkerCommand);
+            }
           } catch (err) {
+            if (!isCurrentConnectionAttempt(connectionId, attempt)) return;
             console.error(`[WinCC OA:${connectionId}] Pre-fetch failed:`, err);
             setConnectionStatus(connectionId, "disconnected");
           }
@@ -323,10 +359,12 @@ export default function App() {
         (async () => {
           try {
             const token = await winccOaLogin(browseConfig);
+            if (!isCurrentConnectionAttempt(connectionId, attempt)) return;
             if (token) setWinccToken(connectionId, token);
             let browsedTags: string[] = [];
             if (nameFilters.length > 0) {
               browsedTags = await winccOaBrowse(browseConfig, nameFilters);
+              if (!isCurrentConnectionAttempt(connectionId, attempt)) return;
             }
             const allTags = [...explicitTags, ...browsedTags];
             const mapping = new Map<string, string>();
@@ -345,6 +383,7 @@ export default function App() {
   function disconnect() {
     const id = activeConnectionId();
     if (!id) return;
+    invalidateConnectionAttempt(id);
     const w = workers.get(id);
     if (w) w.postMessage({ type: "disconnect" } as WorkerCommand);
     setConnectionStatus(id, "disconnected");
@@ -370,6 +409,7 @@ export default function App() {
   }
 
   function deleteConnection(connectionId: string) {
+    invalidateConnectionAttempt(connectionId);
     const w = workers.get(connectionId);
     if (w) {
       w.postMessage({ type: "disconnect" } as WorkerCommand);
@@ -405,7 +445,8 @@ export default function App() {
     setBrowsedChildren(nodePath, true);
 
     try {
-      const results = await fetchBrowseTopics(config.monsterMqGraphqlUrl, topicQuery, archiveGroup);
+      const results = await fetchBrowseTopics(config.monsterMqGraphqlUrl, topicQuery, archiveGroup, config.ignoreCertErrors);
+      if (activeConnectionId() !== connId || getConnectionStatus(connId) !== "connected") return;
       addBrowsedTopics(config.name, results);
     } catch (err) {
       console.error(`[MonsterMQ] Failed to browse topics for ${topicQuery}:`, err);

@@ -70,16 +70,33 @@ function normalizeConnections(input: unknown): ConnectionConfig[] {
     .map(normalizeConnection);
 }
 
+function assertValidConnectionNames(connections: ConnectionConfig[]) {
+  const seen = new Set<string>();
+  for (const connection of connections) {
+    const name = connection.name.trim();
+    if (!name) throw new Error("Each connection requires a name");
+    const key = name.toLocaleLowerCase();
+    if (seen.has(key)) throw new Error(`Connection names must be unique: ${name}`);
+    seen.add(key);
+  }
+}
+
 export async function loadConnections(): Promise<ConnectionConfig[]> {
   try {
     const stored = await get<unknown>(CONNECTIONS_STORAGE_KEY);
     const normalized = normalizeConnections(stored);
-    if (normalized.length > 0) return normalized;
+    // An explicitly saved empty array means the user deleted all connections;
+    // only a missing key is eligible for one-time legacy migration.
+    if (stored !== undefined) {
+      assertValidConnectionNames(normalized);
+      return normalized;
+    }
 
     try {
       const res = await fetch("/api/connections");
       if (!res.ok) return [];
       const migrated = normalizeConnections(await res.json());
+      assertValidConnectionNames(migrated);
       if (migrated.length > 0) {
         await saveConnections(migrated);
       }
@@ -102,6 +119,7 @@ export async function importConnections(jsonText: string): Promise<ConnectionCon
     throw new Error("Import file must contain a JSON array of connections");
   }
   const normalized = normalizeConnections(parsed);
+  assertValidConnectionNames(normalized);
   if (parsed.length > 0 && normalized.length === 0) {
     throw new Error("Import file does not contain any valid connections");
   }
@@ -109,8 +127,12 @@ export async function importConnections(jsonText: string): Promise<ConnectionCon
   return normalized;
 }
 
-export function exportConnections(connections: ConnectionConfig[]): string {
-  return JSON.stringify(connections, null, 2);
+export function exportConnections(connections: ConnectionConfig[], includePasswords = false): string {
+  const exported = connections.map((connection) => ({
+    ...connection,
+    password: includePasswords ? connection.password : "",
+  }));
+  return JSON.stringify(exported, null, 2);
 }
 
 function normalizeWatchlist(input: unknown): Watchlist | null {

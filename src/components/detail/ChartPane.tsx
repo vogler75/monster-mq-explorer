@@ -63,7 +63,7 @@ function TopicConfigPill(props: TopicConfigPillProps) {
   const [showPopover, setShowPopover] = createSignal(false);
   const [filter, setFilter] = createSignal("");
 
-  let pillRef!: HTMLDivElement;
+  let pillRef!: HTMLButtonElement;
 
   const filteredPaths = () => {
     const f = filter().toLowerCase();
@@ -265,7 +265,7 @@ export default function ChartPane() {
         { stroke: "#64748b", ticks: { stroke: "#1e293b" }, grid: { stroke: "#1e293b" } },
       ],
       scales: { x: { time: true } },
-      cursor: { stroke: "#94a3b8", width: 1 },
+      cursor: {},
       legend: { show: true },
     };
   }

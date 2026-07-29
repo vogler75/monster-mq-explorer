@@ -12,6 +12,17 @@ const [messagesPerSecond, setMessagesPerSecond] = createSignal<Map<string, numbe
 // Track message rate
 const msgCountWindows = new Map<string, number>();
 const lastRateUpdates = new Map<string, number>();
+const rateResetTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleRateReset(connectionName: string) {
+  const previous = rateResetTimers.get(connectionName);
+  if (previous) clearTimeout(previous);
+  const timer = setTimeout(() => {
+    setMessagesPerSecond((prev) => new Map(prev).set(connectionName, 0));
+    rateResetTimers.delete(connectionName);
+  }, 1_100);
+  rateResetTimers.set(connectionName, timer);
+}
 
 function updateRate(connectionName: string) {
   const now = Date.now();
@@ -69,6 +80,7 @@ export function useTopicTree() {
       setTotalMessages((n) => n + messages.length);
       msgCountWindows.set(connectionName, (msgCountWindows.get(connectionName) ?? 0) + messages.length);
       updateRate(connectionName);
+      scheduleRateReset(connectionName);
       return newTopics;
     },
 
@@ -128,6 +140,8 @@ export function useTopicTree() {
       setMessagesPerSecond(new Map());
       msgCountWindows.clear();
       lastRateUpdates.clear();
+      for (const timer of rateResetTimers.values()) clearTimeout(timer);
+      rateResetTimers.clear();
     },
 
     clearSubtree(topic: string) {

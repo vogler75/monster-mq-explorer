@@ -108,7 +108,7 @@ export function createMessageLogStore() {
     clearLog(pinnedTopics?: Set<string>) {
       setLogMessages([]);
       topicUpdateTimes.clear();
-      setRecentlyUpdated(new Set());
+      setRecentlyUpdated(new Set<string>());
       if (pruneTimer) {
         clearInterval(pruneTimer);
         pruneTimer = null;

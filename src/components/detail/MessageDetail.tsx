@@ -9,6 +9,7 @@ import {
   formatTimestamp,
 } from "../../lib/format";
 import { collectRetainedTopics } from "../../lib/topic-tree";
+import { stripConnectionPrefix } from "../../lib/connection-topic";
 import { useUI } from "../../stores/ui";
 import { useConnections } from "../../stores/connections";
 import { useTabChartData, useTabPinnedTopics, useTabMessageLog } from "../../stores/tabStore";
@@ -107,8 +108,7 @@ export default function MessageDetail(props: Props) {
     const conn = getConnection(connId);
     if (!conn) return fullTopic;
     // Strip connection name prefix if present (used for MQTT connections)
-    const prefix = `${conn.name}/`;
-    return fullTopic.startsWith(prefix) ? fullTopic.slice(prefix.length) : fullTopic;
+    return stripConnectionPrefix(fullTopic, conn.name);
   }
 
   function copyTopicToClipboard() {
@@ -119,15 +119,19 @@ export default function MessageDetail(props: Props) {
   }
 
   function clearRetained() {
-    if (props.node) publish(props.node.fullTopic, "", 1, true);
+    const connId = activeConnectionId();
+    const conn = connId ? getConnection(connId) : null;
+    if (props.node) publish(stripConnectionPrefix(props.node.fullTopic, conn?.name ?? ""), "", 1, true);
   }
 
 
   const retainedTopicsBelow = createMemo(() => props.node ? collectRetainedTopics(props.node) : []);
 
   function clearAllRetainedBelow() {
+    const connId = activeConnectionId();
+    const conn = connId ? getConnection(connId) : null;
     for (const topic of retainedTopicsBelow()) {
-      publish(topic, "", 1, true);
+      publish(stripConnectionPrefix(topic, conn?.name ?? ""), "", 1, true);
     }
   }
 
@@ -179,7 +183,8 @@ export default function MessageDetail(props: Props) {
 
   function buildPicUrl(payload: Uint8Array) {
     if (prevPicUrl) URL.revokeObjectURL(prevPicUrl);
-    const url = URL.createObjectURL(new Blob([payload], { type: detectMimeType(payload) }));
+    const bytes = Uint8Array.from(payload);
+    const url = URL.createObjectURL(new Blob([bytes.buffer], { type: detectMimeType(payload) }));
     prevPicUrl = url;
     setPicUrl(url);
   }

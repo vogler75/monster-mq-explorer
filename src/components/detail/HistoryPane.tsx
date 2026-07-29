@@ -34,6 +34,7 @@ interface MonsterMqGroup {
   connectionId: string;
   connectionName: string;
   graphqlUrl: string;
+  ignoreCertErrors: boolean;
   archiveGroups: string[];
   configuredArchiveGroup: string;
   topics: string[]; // cleaned (prefix stripped)
@@ -85,6 +86,7 @@ export default function HistoryPane() {
           connectionId: conn.id,
           connectionName: conn.name,
           graphqlUrl: conn.monsterMqGraphqlUrl,
+          ignoreCertErrors: conn.ignoreCertErrors,
           archiveGroups: getArchiveGroups(conn.id),
           configuredArchiveGroup: conn.monsterMqArchiveGroup || "Default",
           topics,
@@ -217,6 +219,7 @@ export default function HistoryPane() {
                   endTime,
                   archiveGroup: group,
                   limit: limit(),
+                  ignoreCertErrors: g.ignoreCertErrors,
                 });
                 for (const m of msgs) {
                   allRows.push({ timestamp: m.timestamp, topic: m.topic, payload: m.payload });
@@ -295,8 +298,9 @@ export default function HistoryPane() {
     const rows = results();
     if (rows.length === 0) return;
     const escape = (s: string) => {
-      if (s.includes('"') || s.includes(",") || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
-      return s;
+      const safe = /^[\t\r ]*[=+\-@]/.test(s) ? `'${s}` : s;
+      if (safe.includes('"') || safe.includes(",") || safe.includes("\n")) return `"${safe.replace(/"/g, '""')}"`;
+      return safe;
     };
     const lines = ["timestamp,topic,payload"];
     for (const row of rows) {

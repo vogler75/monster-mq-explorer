@@ -52,7 +52,7 @@ export function flattenVisibleNodes(
 
     for (const key of childKeys) {
       const child = node.children[key];
-      const hasChildren = Object.keys(child.children).length > 0 || (child.isBrowsed && !child.browsedChildren);
+      const hasChildren = Object.keys(child.children).length > 0 || Boolean(child.isBrowsed && !child.browsedChildren);
       const isExpanded = expandedSet.has(child.fullTopic);
 
       result.push({
@@ -131,7 +131,7 @@ export function flattenFilteredNodes(
 
     for (const key of childKeys) {
       const child = node.children[key];
-      const hasChildren = Object.keys(child.children).length > 0 || (child.isBrowsed && !child.browsedChildren);
+      const hasChildren = Object.keys(child.children).length > 0 || Boolean(child.isBrowsed && !child.browsedChildren);
       const selfMatches = child.fullTopic.toLowerCase().includes(f);
 
       // Tentatively add this node; we'll remove it if neither it nor descendants match

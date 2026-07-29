@@ -225,8 +225,9 @@ export default function MessageTable(props: Props) {
     const msgs = displayMessages();
     if (msgs.length === 0) return;
     const escape = (s: string) => {
-      if (s.includes('"') || s.includes(",") || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
-      return s;
+      const safe = /^[\t\r ]*[=+\-@]/.test(s) ? `'${s}` : s;
+      if (safe.includes('"') || safe.includes(",") || safe.includes("\n")) return `"${safe.replace(/"/g, '""')}"`;
+      return safe;
     };
     const lines = ["timestamp,topic,qos,retain,payload"];
     for (const msg of msgs) {

@@ -81,6 +81,11 @@ npm run build
 npm run preview
 ```
 
+`npm run preview` (or `npm run serve`) starts the production app server, including
+the same-origin GraphQL proxy used by WinCC and MonsterMQ GraphQL connections.
+Deployments using those connection types must provide this `/api/winccua-proxy`
+endpoint; a static-file-only host is not sufficient.
+
 Open [http://localhost:3000](http://localhost:3000) in Chrome or Edge. Click the install icon in the address bar to install as a Progressive Web App.
 
 ### Electron (Desktop)
