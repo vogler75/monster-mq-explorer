@@ -208,17 +208,6 @@ export default function App() {
 
   async function connect(connectionId: string) {
     const attempt = beginConnectionAttempt(connectionId);
-    // Explorer deliberately has one active connection. Stop every live worker,
-    // rather than relying on the UI's currently selected connection ID.
-    for (const [id, worker] of workers) {
-      if (id === connectionId || getConnectionStatus(id) === "disconnected") continue;
-      invalidateConnectionAttempt(id);
-      worker.postMessage({ type: "disconnect" } as WorkerCommand);
-      setConnectionStatus(id, "disconnected");
-      const previousConfig = getConnection(id);
-      if (previousConfig) clearStateForConnection(previousConfig.name);
-    }
-
     const config = getConnection(connectionId);
     if (!config) return;
     await syncIgnoreCertHosts();
@@ -262,13 +251,13 @@ export default function App() {
         (async () => {
           try {
             const token = await winccUaLogin(browseConfig);
-            if (!isCurrentConnectionAttempt(connectionId, attempt) || activeConnectionId() !== connectionId) return;
+            if (!isCurrentConnectionAttempt(connectionId, attempt) || getConnectionStatus(connectionId) === "disconnected") return;
             if (token) setWinccToken(connectionId, token);
 
             let browsedTags: string[] = [];
             if (nameFilters.length > 0) {
               browsedTags = await winccUaBrowseTags(browseConfig, nameFilters, token);
-              if (!isCurrentConnectionAttempt(connectionId, attempt) || activeConnectionId() !== connectionId) return;
+              if (!isCurrentConnectionAttempt(connectionId, attempt) || getConnectionStatus(connectionId) === "disconnected") return;
             }
             let allTags = [...explicitTags, ...browsedTags];
             if (config.filterInternalTags) {
@@ -278,7 +267,7 @@ export default function App() {
             for (const tag of allTags) mapping.set(tagNameToTopic(tag), tag);
             setTopicTagNameMap(connectionId, mapping);
 
-            if (isCurrentConnectionAttempt(connectionId, attempt) && activeConnectionId() === connectionId) {
+            if (isCurrentConnectionAttempt(connectionId, attempt) && getConnectionStatus(connectionId) !== "disconnected") {
               w.postMessage({ type: "connect", config: plainConfig, token, tags: allTags } as WorkerCommand);
             }
           } catch (err) {
@@ -331,20 +320,20 @@ export default function App() {
         (async () => {
           try {
             const token = await winccOaLogin(browseConfig);
-            if (!isCurrentConnectionAttempt(connectionId, attempt) || activeConnectionId() !== connectionId) return;
+            if (!isCurrentConnectionAttempt(connectionId, attempt) || getConnectionStatus(connectionId) === "disconnected") return;
             if (token) setWinccToken(connectionId, token);
 
             let browsedTags: string[] = [];
             if (nameFilters.length > 0) {
               browsedTags = await winccOaBrowse(browseConfig, nameFilters);
-              if (!isCurrentConnectionAttempt(connectionId, attempt) || activeConnectionId() !== connectionId) return;
+              if (!isCurrentConnectionAttempt(connectionId, attempt) || getConnectionStatus(connectionId) === "disconnected") return;
             }
             const allTags = [...explicitTags, ...browsedTags];
             const mapping = new Map<string, string>();
             for (const tag of allTags) mapping.set(oaTagNameToTopic(tag), tag);
             setTopicTagNameMap(connectionId, mapping);
 
-            if (isCurrentConnectionAttempt(connectionId, attempt) && activeConnectionId() === connectionId) {
+            if (isCurrentConnectionAttempt(connectionId, attempt) && getConnectionStatus(connectionId) !== "disconnected") {
               w.postMessage({ type: "connect", config: plainConfig, token } as WorkerCommand);
             }
           } catch (err) {
@@ -380,8 +369,8 @@ export default function App() {
     }
   }
 
-  function disconnect() {
-    const id = activeConnectionId();
+  function disconnect(connectionId?: string) {
+    const id = connectionId ?? activeConnectionId();
     if (!id) return;
     invalidateConnectionAttempt(id);
     const w = workers.get(id);
@@ -446,7 +435,7 @@ export default function App() {
 
     try {
       const results = await fetchBrowseTopics(config.monsterMqGraphqlUrl, topicQuery, archiveGroup, config.ignoreCertErrors);
-      if (activeConnectionId() !== connId || getConnectionStatus(connId) !== "connected") return;
+      if (getConnectionStatus(connId) !== "connected") return;
       addBrowsedTopics(config.name, results);
     } catch (err) {
       console.error(`[MonsterMQ] Failed to browse topics for ${topicQuery}:`, err);
@@ -457,42 +446,40 @@ export default function App() {
 
   // Effect to automatically browse MonsterMQ topics when a connection connects, or nodes are expanded/selected
   createEffect(() => {
-    const connId = activeConnectionId();
-    if (!connId) return;
+    for (const config of connections) {
+      const connId = config.id;
+      const status = getConnectionStatus(connId);
+      if (status !== "connected") continue;
+      if (!config.isMonsterMq || !config.monsterMqGraphqlBrowsing || !config.monsterMqGraphqlUrl) continue;
 
-    const status = getConnectionStatus(connId);
-    if (status !== "connected") return;
+      const archiveGroup = config.monsterMqArchiveGroup || "Default";
+      const expanded = expandedNodes();
+      const selected = selectedTopic();
 
-    const config = getConnection(connId);
-    if (!config || !config.isMonsterMq || !config.monsterMqGraphqlBrowsing || !config.monsterMqGraphqlUrl) return;
+      // 1. Check if the connection root itself is loaded
+      const rootNode = getNodeByTopic(topicTree, config.name);
+      if (!rootNode || !rootNode.browsedChildren) {
+        void browseAndInsert(config.name, "+", archiveGroup, connId);
+      }
 
-    const archiveGroup = config.monsterMqArchiveGroup || "Default";
-    const expanded = expandedNodes();
-    const selected = selectedTopic();
-
-    // 1. Check if the connection root itself is loaded
-    const rootNode = getNodeByTopic(topicTree, config.name);
-    if (!rootNode || !rootNode.browsedChildren) {
-      void browseAndInsert(config.name, "+", archiveGroup, connId);
-    }
-
-    // 2. Check all expanded nodes under this connection
-    for (const path of expanded) {
-      if (path.startsWith(`${config.name}/`)) {
-        const node = getNodeByTopic(topicTree, path);
-        if (node && node.isBrowsed && !node.browsedChildren) {
-          const cleanTopic = path.slice(config.name.length + 1);
-          void browseAndInsert(path, `${cleanTopic}/+`, archiveGroup, connId);
+      // 2. Check all expanded nodes under this connection
+      for (const path of expanded) {
+        if (path.startsWith(`${config.name}/`)) {
+          const node = getNodeByTopic(topicTree, path);
+          if (node && node.isBrowsed && !node.browsedChildren) {
+            const cleanTopic = path.slice(config.name.length + 1);
+            void browseAndInsert(path, `${cleanTopic}/+`, archiveGroup, connId);
+          }
         }
       }
-    }
 
-    // 3. Check selected node under this connection
-    if (selected && selected.startsWith(`${config.name}/`)) {
-      const node = getNodeByTopic(topicTree, selected);
-      if (node && node.isBrowsed && !node.browsedChildren) {
-        const cleanTopic = selected.slice(config.name.length + 1);
-        void browseAndInsert(selected, `${cleanTopic}/+`, archiveGroup, connId);
+      // 3. Check selected node under this connection
+      if (selected && selected.startsWith(`${config.name}/`)) {
+        const node = getNodeByTopic(topicTree, selected);
+        if (node && node.isBrowsed && !node.browsedChildren) {
+          const cleanTopic = selected.slice(config.name.length + 1);
+          void browseAndInsert(selected, `${cleanTopic}/+`, archiveGroup, connId);
+        }
       }
     }
   });

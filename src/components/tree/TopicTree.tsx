@@ -12,17 +12,28 @@ export default function TopicTree() {
   const { topicTree, clearTree, clearSubtree } = useTopicTree();
   const { expandedNodes, selectedTopic, setSelectedTopic, toggleExpanded, sortTree, toggleSort, autoExpand, toggleAutoExpand, expandAll, showRetainedOnly, toggleShowRetainedOnly, publish, connectionStatuses } =
     useUI();
-  const { activeConnectionId, getConnection } = useConnections();
+  const { connections, activeConnectionId, setActiveConnectionId, getConnection } = useConnections();
 
   const anyConnected = () => [...connectionStatuses().values()].some((s) => s === "connected");
+
+  function handleSelectTopic(topic: string | null) {
+    setSelectedTopic(topic);
+    if (topic) {
+      const rootSegment = topic.split("/")[0];
+      const matchingConn = connections.find((c) => c.name === rootSegment);
+      if (matchingConn) {
+        setActiveConnectionId(matchingConn.id);
+      }
+    }
+  }
 
   function clearRetainedMessages() {
     const topic = selectedTopic();
     if (!topic) return;
     const node = getNodeByTopic(topicTree, topic);
     if (!node) return;
-    const connId = activeConnectionId();
-    const conn = connId ? getConnection(connId) : null;
+    const rootSegment = topic.split("/")[0];
+    const conn = connections.find((c) => c.name === rootSegment) ?? (activeConnectionId() ? getConnection(activeConnectionId()!) : null);
     for (const t of collectRetainedTopics(node)) {
       const cleanTopic = conn ? stripConnectionPrefix(t, conn.name) : t;
       publish(cleanTopic, "", 0, true);
@@ -218,7 +229,7 @@ export default function TopicTree() {
                   <TopicRow
                     node={flatNode()}
                     isSelected={selectedTopic() === flatNode()?.key}
-                    onSelect={(topic) => setSelectedTopic(topic)}
+                    onSelect={(topic) => handleSelectTopic(topic)}
                     onToggle={(topic) => toggleExpanded(topic)}
                   />
                 </div>

@@ -7,7 +7,7 @@ import { tooltip } from "../ui/tooltip";
 
 interface Props {
   onConnect: (id: string) => void;
-  onDisconnect: () => void;
+  onDisconnect: (id?: string) => void;
 }
 
 export default function Toolbar(props: Props) {
@@ -102,7 +102,7 @@ export default function Toolbar(props: Props) {
           </button>
           <button
             class="px-3 py-1 text-xs bg-red-600/80 hover:bg-red-500 rounded text-white transition-colors"
-            onClick={props.onDisconnect}
+            onClick={() => props.onDisconnect(activeConnectionId()!)}
           >
             Disconnect
           </button>
@@ -110,7 +110,7 @@ export default function Toolbar(props: Props) {
         <Show when={activeStatus() === "connecting"}>
           <button
             class="px-3 py-1 text-xs bg-red-600/80 hover:bg-red-500 rounded text-white transition-colors"
-            onClick={props.onDisconnect}
+            onClick={() => props.onDisconnect(activeConnectionId()!)}
           >
             Cancel
           </button>

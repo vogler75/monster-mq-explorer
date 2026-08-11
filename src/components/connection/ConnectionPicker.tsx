@@ -6,7 +6,7 @@ import { tooltip } from "../ui/tooltip";
 interface Props {
   onClose: () => void;
   onConnect: (id: string) => void;
-  onDisconnect: () => void;
+  onDisconnect: (id?: string) => void;
 }
 
 export default function ConnectionPicker(props: Props) {
@@ -63,10 +63,6 @@ export default function ConnectionPicker(props: Props) {
   }
 
   function selectConnection(connectionId: string) {
-    const currentId = activeConnectionId();
-    if (currentId && currentId !== connectionId && getConnectionStatus(currentId) !== "disconnected") {
-      props.onDisconnect();
-    }
     setActiveConnectionId(connectionId);
   }
 
@@ -194,8 +190,7 @@ export default function ConnectionPicker(props: Props) {
                     class="p-0.5 text-red-500 hover:text-red-400"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setActiveConnectionId(conn.id);
-                      props.onDisconnect();
+                      props.onDisconnect(conn.id);
                     }}
                     use:tooltip="Disconnect"
                   >
