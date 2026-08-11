@@ -60,7 +60,7 @@ if $DO_UPLOAD; then
   else
     echo "[build-win] Creating release ${TAG}..."
     gh release create "$TAG" "${EXES[@]}" \
-      --title "Monster MQTT Explorer ${TAG}" \
+      --title "MonsterMQ-Explorer ${TAG}" \
       --notes "Release ${TAG}"
   fi
 

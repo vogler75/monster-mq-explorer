@@ -1,5 +1,5 @@
 {
-  "name": "monster-mqtt-explorer",
+  "name": "monstermq-explorer",
   "version": "0.5.11",
   "description": "High-performance MQTT client with topic tree visualization",
   "type": "module",
@@ -50,8 +50,8 @@
     "global-agent": "^4.1.3"
   },
   "build": {
-    "appId": "com.monstermqtt.explorer",
-    "productName": "Monster MQTT Explorer",
+    "appId": "com.monstermq.explorer",
+    "productName": "MonsterMQ-Explorer",
     "copyright": "Copyright © 2026 Andreas Vogler",
     "directories": {
       "buildResources": "public",

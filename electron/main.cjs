@@ -267,7 +267,7 @@ function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    title: `Monster MQTT Explorer v${pkg.version}`,
+    title: `MonsterMQ-Explorer v${pkg.version}`,
     icon: path.join(__dirname, "../dist/icons/icon.ico"),
     backgroundColor: "#0f172a",
     webPreferences: {

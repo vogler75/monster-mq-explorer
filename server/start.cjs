@@ -50,5 +50,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, listenHost, () => {
-  console.log(`Monster MQTT Explorer is running at http://${listenHost}:${port}`);
+  console.log(`MonsterMQ-Explorer is running at http://${listenHost}:${port}`);
 });

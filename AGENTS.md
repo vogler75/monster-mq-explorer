@@ -18,7 +18,7 @@ npm run preview           # Preview production build
 
 ## Architecture
 
-Monster MQTT Explorer is a high-performance MQTT/WinCC client with topic tree visualization, built as a PWA and Electron app using **Solid.js**, **Tailwind CSS v4**, and **Vite**.
+MonsterMQ-Explorer is a high-performance MQTT/WinCC client with topic tree visualization, built as a PWA and Electron app using **Solid.js**, **Tailwind CSS v4**, and **Vite**.
 
 ### Connection Types
 

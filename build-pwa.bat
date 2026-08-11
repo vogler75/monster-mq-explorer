@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-echo [Monster MQTT Explorer] Building PWA bundle...
+echo [MonsterMQ-Explorer] Building PWA bundle...
 
 where npm >nul 2>nul
 if errorlevel 1 (

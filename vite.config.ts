@@ -30,8 +30,8 @@ export default defineConfig({
     ...isElectron ? [] : [VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Monster MQTT Explorer",
-        short_name: "MonsterMQTT",
+        name: "MonsterMQ-Explorer",
+        short_name: "MonsterMQ-Explorer",
         description: "High-performance MQTT client with topic tree visualization",
         theme_color: "#0f172a",
         background_color: "#0f172a",

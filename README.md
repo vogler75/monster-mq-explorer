@@ -1,8 +1,8 @@
-# Monster MQTT Explorer
+# MonsterMQ-Explorer
 
 An MQTT and WinCC (Unified/OA) explorer with topic tree visualization, message inspection, and real-time charting. Designed to handle large topic trees and high message rates without slowing down.
 
-![Monster MQTT Explorer](doc/Monster-MQTT-Explorer-1.png)
+![MonsterMQ-Explorer](doc/Monster-MQTT-Explorer-1.png)
 
 ## Why Monster?
 

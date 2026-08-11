@@ -2,7 +2,7 @@
 
 set -eu
 
-echo "[Monster MQTT Explorer] Building PWA bundle..."
+echo "[MonsterMQ-Explorer] Building PWA bundle..."
 
 if ! command -v npm >/dev/null 2>&1; then
   echo "ERROR: npm was not found in PATH."

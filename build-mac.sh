@@ -61,7 +61,7 @@ if $DO_UPLOAD; then
   else
     echo "[build-mac] Creating release ${TAG}..."
     gh release create "$TAG" "${DMGS[@]}" \
-      --title "Monster MQTT Explorer ${TAG}" \
+      --title "MonsterMQ-Explorer ${TAG}" \
       --notes "Release ${TAG}"
   fi
 

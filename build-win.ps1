@@ -47,7 +47,7 @@ if ($u) {
   gh release view $tag 2>$null
   if ($LASTEXITCODE -ne 0) {
     Write-Host "[build-win] Creating release $tag..."
-    gh release create $tag $exe.FullName --title "Monster MQTT Explorer $tag" --notes "Release $tag"
+    gh release create $tag $exe.FullName --title "MonsterMQ-Explorer $tag" --notes "Release $tag"
   } else {
     Write-Host "[build-win] Release $tag exists -- re-uploading asset..."
     gh release upload $tag $exe.FullName --clobber
