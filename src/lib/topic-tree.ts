@@ -11,10 +11,58 @@ export function createRootNode(): TopicNode {
   };
 }
 
+export function removeTopic(root: TopicNode, topic: string): void {
+  const segments = topic.split("/");
+  if (segments.length === 0 || (segments.length === 1 && segments[0] === "")) return;
+
+  const stack: { node: TopicNode; segment: string }[] = [];
+  let current = root;
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    if (!current.children[segment]) {
+      return;
+    }
+    stack.push({ node: current, segment });
+    current = current.children[segment];
+  }
+
+  // If node has children (or browsed children), only clear its lastMessage
+  const hasChildren = Object.keys(current.children).length > 0 || Boolean(current.isBrowsed && !current.browsedChildren);
+  if (hasChildren) {
+    current.lastMessage = null;
+    return;
+  }
+
+  // Leaf node: prune upwards
+  while (stack.length > 0) {
+    const { node: parent, segment } = stack.pop()!;
+    const child = parent.children[segment];
+    if (!child) break;
+
+    const childHasChildren = Object.keys(child.children).length > 0 || Boolean(child.isBrowsed && !child.browsedChildren);
+    if (childHasChildren) {
+      break;
+    }
+
+    delete parent.children[segment];
+
+    const parentHasChildren = Object.keys(parent.children).length > 0 || Boolean(parent.isBrowsed && !parent.browsedChildren);
+    if (parent.lastMessage !== null || parent.isBrowsed || parentHasChildren) {
+      break;
+    }
+  }
+}
+
 export function insertMessage(
   root: TopicNode,
   message: MqttMessage
 ): void {
+  if (!message.payload || message.payload.length === 0) {
+    removeTopic(root, message.topic);
+    return;
+  }
+
   const segments = message.topic.split("/");
   let current = root;
 

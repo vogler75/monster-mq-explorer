@@ -2,7 +2,7 @@ import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import type { TopicNode, MqttMessage } from "../types/mqtt";
 import type { SerializedMessage } from "../workers/mqtt.protocol";
-import { createRootNode, getNodeByTopic } from "../lib/topic-tree";
+import { createRootNode, getNodeByTopic, removeTopic } from "../lib/topic-tree";
 import type { MonsterMqBrowsedTopic } from "../lib/monstermq-api";
 
 const [topicTree, setTopicTree] = createStore<TopicNode>(createRootNode());
@@ -51,6 +51,11 @@ export function useTopicTree() {
       setTopicTree(
         produce((root) => {
           for (const msg of messages) {
+            if (!msg.payload || msg.payload.length === 0) {
+              removeTopic(root, msg.topic);
+              continue;
+            }
+
             const segments = msg.topic.split("/");
             let current = root;
 
@@ -169,6 +174,14 @@ export function useTopicTree() {
           if (node) {
             node.browsedChildren = value;
           }
+        })
+      );
+    },
+
+    removeTopic(topic: string) {
+      setTopicTree(
+        produce((root) => {
+          removeTopic(root, topic);
         })
       );
     },
