@@ -1,6 +1,6 @@
 {
   "name": "monstermq-explorer",
-  "version": "0.5.12",
+  "version": "0.5.14",
   "description": "High-performance MQTT client with topic tree visualization",
   "type": "module",
   "main": "electron/main.cjs",
@@ -41,7 +41,6 @@
     "vitest": "^4.1.1"
   },
   "overrides": {
-    "sourcemap-codec": "npm:@jridgewell/sourcemap-codec@^1.5.5",
     "source-map": "^0.7.6",
     "glob": "^13.0.6",
     "serialize-javascript": "^7.0.4",
