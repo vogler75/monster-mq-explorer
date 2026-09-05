@@ -20,7 +20,11 @@ fi
 echo "[build] Building macOS Electron app..."
 ./build-mac.sh
 
-echo "[build] Building Windows Electron app..."
-./build-win.sh
+if [[ "$(uname -s)" == "Linux" ]]; then
+  echo "[build] Notice: Skipping Windows Electron build on Linux (Windows installer is built on Windows)."
+else
+  echo "[build] Building Windows Electron app..."
+  ./build-win.sh
+fi
 
 echo "[build] All platform builds completed successfully."

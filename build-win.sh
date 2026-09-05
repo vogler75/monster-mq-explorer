@@ -13,6 +13,11 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
 fi
 
+if [[ "$(uname -s)" == "Linux" ]]; then
+  echo "[build-win] Notice: Skipping Windows Electron build on Linux. Windows installer is built on Windows."
+  exit 0
+fi
+
 echo "[build-win] Building Windows Electron app..."
 npm run build:electron:win
 echo "[build-win] Build complete."
