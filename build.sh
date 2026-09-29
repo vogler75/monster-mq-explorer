@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 usage() {
   echo "Usage: $0 [-h|--help]"
   echo
-  echo "Build all Electron app packages (macOS and Windows)."
+  echo "Build all Electron app packages (macOS, Windows and Linux)."
   echo
   echo "Options:"
   echo "  -h, --help    Show this help message and exit"
@@ -26,5 +26,8 @@ else
   echo "[build] Building Windows Electron app..."
   ./build-win.sh
 fi
+
+echo "[build] Building Linux Electron app..."
+./build-linux.sh
 
 echo "[build] All platform builds completed successfully."

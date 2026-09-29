@@ -268,7 +268,8 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: `MonsterMQ-Explorer v${pkg.version}`,
-    icon: path.join(__dirname, "../dist/icons/icon.ico"),
+    // Linux can't load .ico window icons
+    icon: path.join(__dirname, process.platform === "win32" ? "../dist/icons/icon.ico" : "../dist/icons/icon-512.png"),
     backgroundColor: "#0f172a",
     webPreferences: {
       nodeIntegration: false,

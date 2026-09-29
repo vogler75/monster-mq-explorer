@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 usage() {
   echo "Usage: $0 [-h|--help]"
   echo
-  echo "Upload built release artifacts in release/ (.dmg, .exe) to GitHub Release."
+  echo "Upload built release artifacts in release/ (.dmg, .exe, .zip, .AppImage, .deb) to GitHub Release."
   echo "Uses the version from package.json as the release tag (e.g. v0.5.12)."
   echo
   echo "Options:"
@@ -27,13 +27,13 @@ VERSION=$(node -p "require('./package.json').version")
 TAG="v${VERSION}"
 
 FILES=()
-for f in release/*.dmg release/*.exe release/*.zip release/*.AppImage; do
+for f in release/*.dmg release/*.exe release/*.zip release/*.AppImage release/*.deb; do
   [[ "$f" == *.blockmap ]] && continue
   [ -f "$f" ] && FILES+=("$f")
 done
 
 if [ ${#FILES[@]} -eq 0 ]; then
-  echo "ERROR: No release files found in release/. Build first using ./build.sh (or ./build-mac.sh / ./build-win.sh)."
+  echo "ERROR: No release files found in release/. Build first using ./build.sh (or ./build-mac.sh / ./build-win.sh / ./build-linux.sh)."
   exit 1
 fi
 

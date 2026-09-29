@@ -11,6 +11,7 @@ npm run build:pwa         # PWA build with version bump
 npm run build:electron    # Electron build (all platforms)
 npm run build:electron:mac  # Electron build for macOS (DMG)
 npm run build:electron:win  # Electron build for Windows (NSIS)
+npm run build:electron:linux  # Electron build for Linux (AppImage, deb)
 npm run test              # Run tests with vitest (watch mode)
 npx vitest run <file>     # Run a single test file once
 npm run preview           # Preview production build
