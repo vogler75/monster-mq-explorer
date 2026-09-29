@@ -18,6 +18,11 @@ if [[ "$(uname -s)" == "Linux" ]]; then
   exit 0
 fi
 
+if [[ ! -d "node_modules" ]]; then
+  echo "[build-win] Installing dependencies..."
+  npm install
+fi
+
 echo "[build-win] Building Windows Electron app..."
 npm run build:electron:win
 echo "[build-win] Build complete."

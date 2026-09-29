@@ -16,6 +16,15 @@ if (-not $b -and -not $u) {
 # ── Build ──────────────────────────────────────────────────────────────────
 
 if ($b) {
+  if (-not (Test-Path "node_modules")) {
+    Write-Host "[build-win] node_modules not found. Installing dependencies..."
+    npm install
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host "ERROR: npm install failed." -ForegroundColor Red
+      Pop-Location; exit 1
+    }
+  }
+
   Write-Host "[build-win] Building Windows Electron app..."
   npm run build:electron:win
   if ($LASTEXITCODE -ne 0) {
