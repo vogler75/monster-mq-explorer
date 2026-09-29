@@ -9,7 +9,6 @@ import TagBrowserModal from "./TagBrowserModal";
 import { loginAndBrowse as winccoaBrowse } from "../../lib/winccoa-api";
 import { fetchArchiveGroups } from "../../lib/monstermq-api";
 import { tooltip } from "../ui/tooltip";
-import { createEffect } from "solid-js";
 
 export default function ConnectionModal() {
   const { addConnection, updateConnection, getConnection, connections } = useConnections();
@@ -41,6 +40,7 @@ export default function ConnectionModal() {
   const [archiveGroups, setArchiveGroups] = createSignal<string[]>([]);
   const [fetchingGroups, setFetchingGroups] = createSignal(false);
   const [fetchError, setFetchError] = createSignal<string | null>(null);
+  const [fetchSuccess, setFetchSuccess] = createSignal<string | null>(null);
   const [ignoreCertErrors, setIgnoreCertErrors] = createSignal(defaults().ignoreCertErrors ?? false);
   const [showTagBrowser, setShowTagBrowser] = createSignal(false);
   const [validationError, setValidationError] = createSignal<string | null>(null);
@@ -49,26 +49,47 @@ export default function ConnectionModal() {
     ...defaults().subscriptions,
   ]);
 
-  createEffect(() => {
-    const url = monsterMqGraphqlUrl();
-    if (isMonsterMq() && monsterMqGraphqlBrowsing() && url) {
-      setFetchingGroups(true);
-      setFetchError(null);
-      fetchArchiveGroups(url, ignoreCertErrors())
-        .then((groups) => {
-          setArchiveGroups(groups.map((g) => g.name));
-        })
-        .catch((err) => {
-          setFetchError(err instanceof Error ? err.message : "Failed to fetch archive groups");
-          setArchiveGroups([]);
-        })
-        .finally(() => {
-          setFetchingGroups(false);
-        });
-    } else {
-      setArchiveGroups([]);
+  async function fetchMonsterMqGroups() {
+    const url = monsterMqGraphqlUrl().trim();
+    if (!url) {
+      setFetchError("Please enter a GraphQL URL.");
+      setFetchSuccess(null);
+      return;
     }
-  });
+    setFetchingGroups(true);
+    setFetchError(null);
+    setFetchSuccess(null);
+    try {
+      if (ignoreCertErrors() && window.mqttIpc?.setIgnoreCertHosts) {
+        try {
+          const parsed = new URL(url);
+          await window.mqttIpc.setIgnoreCertHosts([parsed.hostname]);
+        } catch {
+          // ignore parsing error, fetchArchiveGroups will catch network error
+        }
+      }
+      const groups = await fetchArchiveGroups(url, ignoreCertErrors());
+      const names = groups.map((g) => g.name);
+      setArchiveGroups(names);
+      if (names.length > 0) {
+        if (!monsterMqArchiveGroup() || !names.includes(monsterMqArchiveGroup())) {
+          if (names.includes("Default")) {
+            setMonsterMqArchiveGroup("Default");
+          } else {
+            setMonsterMqArchiveGroup(names[0]);
+          }
+        }
+        setFetchSuccess(`Connected. Found ${names.length} archive group${names.length === 1 ? "" : "s"}.`);
+      } else {
+        setFetchSuccess("Connected. No active archive groups found.");
+      }
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Failed to fetch archive groups");
+      setArchiveGroups([]);
+    } finally {
+      setFetchingGroups(false);
+    }
+  }
 
   function switchType(type: "mqtt" | "winccua" | "winccoa") {
     if (isEditing()) return; // don't switch type when editing
@@ -377,7 +398,15 @@ export default function ConnectionModal() {
                 type="checkbox"
                 class="accent-blue-500"
                 checked={isMonsterMq()}
-                onChange={(e) => setIsMonsterMq(e.currentTarget.checked)}
+                onChange={(e) => {
+                  const checked = e.currentTarget.checked;
+                  setIsMonsterMq(checked);
+                  if (!checked) {
+                    setArchiveGroups([]);
+                    setFetchError(null);
+                    setFetchSuccess(null);
+                  }
+                }}
               />
               <span class="text-xs text-slate-400">MonsterMQ Broker</span>
             </label>
@@ -385,12 +414,38 @@ export default function ConnectionModal() {
               <div class="space-y-2 mt-2">
                 <div>
                   <label class={labelClass}>GraphQL URL</label>
-                  <input
-                    class={inputClass}
-                    placeholder="https://broker:4000/graphql"
-                    value={monsterMqGraphqlUrl()}
-                    onInput={(e) => setMonsterMqGraphqlUrl(e.currentTarget.value)}
-                  />
+                  <div class="flex gap-2">
+                    <input
+                      class={inputBase + " flex-1 min-w-0"}
+                      placeholder="https://broker:4000/graphql"
+                      value={monsterMqGraphqlUrl()}
+                      onInput={(e) => {
+                        setMonsterMqGraphqlUrl(e.currentTarget.value);
+                        setFetchError(null);
+                        setFetchSuccess(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          fetchMonsterMqGroups();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50 shrink-0"
+                      onClick={fetchMonsterMqGroups}
+                      disabled={fetchingGroups() || !monsterMqGraphqlUrl().trim()}
+                    >
+                      {fetchingGroups() ? "Connecting…" : "Connect"}
+                    </button>
+                  </div>
+                  <Show when={fetchSuccess()}>
+                    <p class="text-xs text-emerald-400 mt-1">{fetchSuccess()}</p>
+                  </Show>
+                  <Show when={fetchError()}>
+                    <p class="text-xs text-red-400 mt-1">{fetchError()}</p>
+                  </Show>
                 </div>
                 <label class="flex items-center gap-2 cursor-pointer">
                   <input
@@ -408,17 +463,12 @@ export default function ConnectionModal() {
                       <Show
                         when={archiveGroups().length > 0}
                         fallback={
-                          <div class="flex items-center gap-2">
-                            <input
-                              class={inputClass}
-                              placeholder="e.g. Default"
-                              value={monsterMqArchiveGroup()}
-                              onInput={(e) => setMonsterMqArchiveGroup(e.currentTarget.value)}
-                            />
-                            <Show when={fetchingGroups()}>
-                              <span class="text-xs text-slate-500 animate-pulse">Fetching...</span>
-                            </Show>
-                          </div>
+                          <input
+                            class={inputClass}
+                            placeholder="e.g. Default"
+                            value={monsterMqArchiveGroup()}
+                            onInput={(e) => setMonsterMqArchiveGroup(e.currentTarget.value)}
+                          />
                         }
                       >
                         <select
@@ -431,9 +481,6 @@ export default function ConnectionModal() {
                             {(group) => <option value={group}>{group}</option>}
                           </For>
                         </select>
-                      </Show>
-                      <Show when={fetchError()}>
-                        <p class="text-xs text-red-400 mt-1">{fetchError()}</p>
                       </Show>
                     </div>
                   </div>
