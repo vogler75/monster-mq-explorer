@@ -17,6 +17,11 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
+if [[ ! -d "node_modules" ]]; then
+  echo "[build] Installing dependencies..."
+  npm install
+fi
+
 echo "[build] Building macOS Electron app..."
 ./build-mac.sh
 
