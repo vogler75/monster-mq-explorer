@@ -5,3 +5,5 @@ release
 *.local
 .DS_Store
 .claude
+# Python (make.py)
+__pycache__/

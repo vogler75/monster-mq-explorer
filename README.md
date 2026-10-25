@@ -100,6 +100,23 @@ npm run build:electron:win   # → release/*.exe (x64)
 npm run build:electron       # both platforms
 ```
 
+### make.py (all platforms)
+
+`make.py` (Python 3.9+, no packages needed) wraps the build, run and release tasks and works
+the same on Windows, macOS and Linux. Use `py make.py ...` on Windows if `python` is not on PATH.
+
+```bash
+python make.py help                # list all commands; <command> --help for options
+python make.py build               # Electron packages for every platform this OS can build → release/
+python make.py build --win         # or --mac / --linux (DMG only on macOS, Linux packages not on Windows)
+python make.py build --pwa         # PWA bundle → dist/
+python make.py build --docker      # web bundle → dist/, built in a node:22-alpine container
+python make.py run                 # dev server (-b: build + production preview, -e: Electron preview)
+python make.py release             # tag and push a release (then: build, publish, dev)
+python make.py publish             # upload release/ packages to the GitHub release of the tag
+python make.py status              # version/tag state and inconsistencies
+```
+
 ## Tech Stack
 
 - [Solid.js](https://solidjs.com) — reactive UI without virtual DOM overhead

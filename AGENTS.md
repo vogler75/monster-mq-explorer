@@ -17,6 +17,19 @@ npx vitest run <file>     # Run a single test file once
 npm run preview           # Preview production build
 ```
 
+Build, run and release tasks go through `make.py` (Python 3.9+, stdlib only; there are no .sh/.ps1 scripts):
+
+```bash
+python make.py help                    # all commands; python make.py <command> --help for options
+python make.py build [--mac] [--win] [--linux] [--pwa] [--docker] [--all]   # default: Electron for all buildable platforms
+python make.py run [-b] [-e]           # dev server / build + preview / Electron preview
+python make.py release | dev | retag | status | repair   # versioning and tags (see --help)
+python make.py publish [--dry-run]     # upload release/ packages to the GitHub release vX.Y.Z (tag must be on origin at HEAD)
+py -m unittest discover -s scripts/tests   # tests for the make.py tooling
+```
+
+Code: `make.py` (entry point), `scripts/tasks/` (build/run/publish), `scripts/mmqlib/` (shared helpers, release logic).
+
 ## Architecture
 
 MonsterMQ-Explorer is a high-performance MQTT/WinCC client with topic tree visualization, built as a PWA and Electron app using **Solid.js**, **Tailwind CSS v4**, and **Vite**.
