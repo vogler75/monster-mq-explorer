@@ -149,6 +149,7 @@ function handleTcpConnect(connectionId, config) {
   // Tear down any existing connection for this id
   const existing = tcpClients.get(connectionId);
   if (existing && existing.client) {
+    tcpClients.delete(connectionId);
     existing.client.end(true);
   }
 
@@ -180,8 +181,12 @@ function handleTcpConnect(connectionId, config) {
   tcpClients.set(connectionId, state);
   const client = mqtt.connect(url, opts);
   state.client = client;
+  // Events from a replaced/disconnected client must not reach the renderer
+  // (e.g. its late "close" would mark the new connection as disconnected).
+  const isCurrent = () => tcpClients.get(connectionId) === state;
 
   client.on("connect", () => {
+    if (!isCurrent()) return;
     sendToRenderer(connectionId, { type: "connected" });
     for (const sub of state.subscriptions) {
       client.subscribe(sub.topic, { qos: sub.qos }, (err) => {
@@ -195,6 +200,7 @@ function handleTcpConnect(connectionId, config) {
   });
 
   client.on("message", (topic, payload, packet) => {
+    if (!isCurrent()) return;
     state.pendingMessages.push({
       topic,
       payload: new Uint8Array(payload),
@@ -206,14 +212,17 @@ function handleTcpConnect(connectionId, config) {
   });
 
   client.on("error", (err) => {
+    if (!isCurrent()) return;
     sendToRenderer(connectionId, { type: "error", message: err.message });
   });
 
   client.on("close", () => {
+    if (!isCurrent()) return;
     sendToRenderer(connectionId, { type: "disconnected" });
   });
 
   client.on("offline", () => {
+    if (!isCurrent()) return;
     sendToRenderer(connectionId, { type: "disconnected", reason: "offline" });
   });
 }
@@ -229,8 +238,8 @@ function handleTcpCommand(connectionId, cmd) {
 
   switch (cmd.type) {
     case "disconnect":
-      state.client.end(true);
       tcpClients.delete(connectionId);
+      state.client.end(true);
       break;
     case "subscribe":
       state.subscriptions = [

@@ -76,7 +76,7 @@ export default function PublishPane() {
   }
 
   function doPublish() {
-    if (connectionStatus() !== "connected" || !pubTopic()) return;
+    if (connectionStatus() !== "connected" || !pubTopic() || isWinCC()) return;
     publish(pubTopic(), pubPayload(), pubQos(), pubRetain());
     setPubFeedback("ok");
     setTimeout(() => setPubFeedback(""), 1500);

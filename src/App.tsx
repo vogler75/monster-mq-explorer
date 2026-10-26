@@ -24,6 +24,7 @@ const workers = new Map<string, Worker | WorkerLike>();
 // Track whether each connection uses IPC so we can detect protocol switches
 const workerIsIpc = new Map<string, boolean>();
 const connectionAttempts = new Map<string, number>();
+const BROWSE_RETRY_DELAY_MS = 5000;
 
 function beginConnectionAttempt(connectionId: string): number {
   const next = (connectionAttempts.get(connectionId) ?? 0) + 1;
@@ -439,8 +440,11 @@ export default function App() {
       addBrowsedTopics(config.name, results);
     } catch (err) {
       console.error(`[MonsterMQ] Failed to browse topics for ${topicQuery}:`, err);
-      // Reset loading flag on error
-      setBrowsedChildren(nodePath, false);
+      // Reset loading flag after a delay: resetting it immediately re-triggers
+      // the browse effect and would hammer an unreachable endpoint in a tight loop.
+      setTimeout(() => {
+        if (getConnectionStatus(connId) === "connected") setBrowsedChildren(nodePath, false);
+      }, BROWSE_RETRY_DELAY_MS);
     }
   }
 

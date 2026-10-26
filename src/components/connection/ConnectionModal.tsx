@@ -3,6 +3,8 @@ import { createSignal, For, Show, Index } from "solid-js";
 import { createStore } from "solid-js/store";
 import { useConnections } from "../../stores/connections";
 import { useUI } from "../../stores/ui";
+import { useTopicTree } from "../../stores/topics";
+import { clearTabStateForConnection } from "../../stores/tabStore";
 import type { ConnectionConfig, Subscription } from "../../types/mqtt";
 import { createDefaultConnection, createDefaultWinCCUAConnection, createDefaultWinCCOAConnection } from "../../types/mqtt";
 import TagBrowserModal from "./TagBrowserModal";
@@ -12,7 +14,8 @@ import { tooltip } from "../ui/tooltip";
 
 export default function ConnectionModal() {
   const { addConnection, updateConnection, getConnection, connections } = useConnections();
-  const { setShowConnectionModal, editingConnectionId } = useUI();
+  const { setShowConnectionModal, editingConnectionId, selectedTopic, setSelectedTopic } = useUI();
+  const { clearSubtree } = useTopicTree();
 
   const isEditing = () => editingConnectionId() !== null;
   const existing = () =>
@@ -142,6 +145,11 @@ export default function ConnectionModal() {
       setValidationError("Connection name is required.");
       return;
     }
+    // The name is used as the root segment of the topic tree
+    if (trimmedName.includes("/")) {
+      setValidationError("Connection name must not contain '/'.");
+      return;
+    }
     const normalizedName = trimmedName.toLocaleLowerCase();
     const duplicate = connections.some(
       (connection) =>
@@ -174,6 +182,15 @@ export default function ConnectionModal() {
     };
 
     if (isEditing()) {
+      // Topics are stored under the connection name; drop the tree of the old
+      // name so it doesn't linger as an orphan next to the renamed one.
+      const oldName = existing()?.name;
+      if (oldName && oldName !== trimmedName) {
+        clearSubtree(oldName);
+        const selected = selectedTopic();
+        if (selected === oldName || selected?.startsWith(`${oldName}/`)) setSelectedTopic(null);
+        clearTabStateForConnection(oldName);
+      }
       updateConnection(editingConnectionId()!, config);
     } else {
       addConnection(config);

@@ -20,6 +20,9 @@ function scheduleRateReset(connectionName: string) {
   const timer = setTimeout(() => {
     setMessagesPerSecond((prev) => new Map(prev).set(connectionName, 0));
     rateResetTimers.delete(connectionName);
+    // Start a fresh window on the next burst instead of averaging over the idle gap
+    msgCountWindows.delete(connectionName);
+    lastRateUpdates.delete(connectionName);
   }, 1_100);
   rateResetTimers.set(connectionName, timer);
 }
