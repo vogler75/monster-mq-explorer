@@ -19,6 +19,9 @@ from .common import PRODUCT, ensure_node_modules, host_arch, host_os, require_np
 
 ELECTRON_TARGETS = ("mac", "win", "linux")
 ARTIFACT_PATTERNS = ("*.dmg", "*.exe", "*.zip", "*.AppImage", "*.deb")
+# Uploading is `make.py publish` (or the CI release job); electron-builder must never publish
+# by itself - on CI with a tag it would otherwise try to and fail without a GitHub token.
+NO_PUBLISH = ["--publish", "never"]
 
 DESCRIPTION = """\
 Build MonsterMQ Explorer.
@@ -83,16 +86,16 @@ def _electron_web_assets(root: Path) -> None:
 def _build_mac(root: Path, os_name: str) -> None:
     ui.step("Packaging macOS Electron app...")
     if os_name == "mac":
-        proc.run(["npx", "electron-builder", "--mac"], cwd=root)
+        proc.run(["npx", "electron-builder", "--mac", *NO_PUBLISH], cwd=root)
     else:
         ui.warn("Not running on macOS: building macOS .zip packages only "
                 "(DMG requires macOS sips/hdiutil).")
-        proc.run(["npx", "electron-builder", "--mac", "zip", "--arm64", "--x64"], cwd=root)
+        proc.run(["npx", "electron-builder", "--mac", "zip", "--arm64", "--x64", *NO_PUBLISH], cwd=root)
 
 
 def _build_win(root: Path) -> None:
     ui.step("Packaging Windows Electron app...")
-    proc.run(["npx", "electron-builder", "--win"], cwd=root)
+    proc.run(["npx", "electron-builder", "--win", *NO_PUBLISH], cwd=root)
 
 
 def _build_linux(root: Path) -> Optional[str]:
@@ -100,7 +103,7 @@ def _build_linux(root: Path) -> Optional[str]:
     if warning:
         ui.warn(warning)
     ui.step(f"Packaging Linux Electron app ({' '.join(targets)})...")
-    proc.run(["npx", "electron-builder", "--linux", *targets, "--x64", "--arm64"], cwd=root, env=env)
+    proc.run(["npx", "electron-builder", "--linux", *targets, "--x64", "--arm64", *NO_PUBLISH], cwd=root, env=env)
     return warning
 
 
