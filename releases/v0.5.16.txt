@@ -1,0 +1,8 @@
+Release v0.5.16
+Built from commit: 3ebafb7
+Date: 2026-10-26 14:33:35
+
+Changes since v0.5.15:
+---
+3ebafb7 fix(mac): ad-hoc sign the app and request local network access
+ae1e1a9 chore(version): prepare next version 0.5.16-dev
