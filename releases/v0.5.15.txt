@@ -1,0 +1,19 @@
+Release v0.5.15
+Built from commit: d6fa07d
+Date: 2026-10-26 12:51:22
+
+Changes since v0.5.14:
+---
+d6fa07d fix: stale TCP client events, browse retry loop, rename orphans and more
+e55d633 chore(version): prepare next version 0.5.15-dev
+a83cd2b Add GitHub Actions release pipeline for macOS, Windows and Linux
+b97434a Replace shell/PowerShell scripts with cross-platform make.py
+f71e6d8 Replace build-pwa.bat with PowerShell build-pwa.ps1
+2038c2a feat(release): add bump-dev.sh and --dev support to release.sh
+e388294 feat(build): warn with install hint when fpm/ruby missing for .deb build
+2c8c5b3 Merge branch 'main' of github.com:vogler75/monster-mq-explorer
+274d3cf feat(build): add Linux Electron build (AppImage, deb)
+29dfda6 feat(connection): add manual connect action and feedback for MonsterMQ archive groups
+d95cecd fix(build): check and install dependencies automatically in build scripts
+a9c4c67 fix(build): skip Windows Electron installer build on Linux (requires Windows or Wine)
+45836a9 build: bump version to 0.5.14 and improve mac build script
