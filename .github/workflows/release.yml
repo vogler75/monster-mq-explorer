@@ -60,7 +60,7 @@ jobs:
       - name: Build ${{ matrix.name }}
         run: python make.py build ${{ matrix.target }}
         env:
-          # no signing certificates: build unsigned (macOS arm64 still gets an ad-hoc signature)
+          # no signing certificates: Windows/Linux unsigned, macOS ad-hoc signed (mac.identity "-" in package.json)
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload artifacts

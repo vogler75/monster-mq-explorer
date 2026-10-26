@@ -100,6 +100,19 @@ npm run build:electron:win   # → release/*.exe (x64)
 npm run build:electron       # both platforms
 ```
 
+#### macOS: first launch
+
+The DMG is ad-hoc signed but not notarized (no Apple Developer ID), so Gatekeeper blocks the
+first launch of a downloaded copy. Either open it once via *System Settings → Privacy & Security →
+Open Anyway*, or remove the quarantine flag after copying the app to Applications:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/MonsterMQ-Explorer.app
+```
+
+On macOS 15+ allow *Local Network* access when asked (or later under *System Settings → Privacy &
+Security → Local Network*), otherwise connections to brokers on the LAN fail with `EHOSTUNREACH`.
+
 ### make.py (all platforms)
 
 `make.py` (Python 3.9+, no packages needed) wraps the build, run and release tasks and works

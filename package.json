@@ -65,6 +65,11 @@
     "mac": {
       "icon": "public/icons/icon-512.png",
       "category": "public.app-category.developer-tools",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "MonsterMQ Explorer connects to MQTT brokers and servers on your local network."
+      },
       "artifactName": "${productName}-${arch}.${ext}",
       "target": [
         {
